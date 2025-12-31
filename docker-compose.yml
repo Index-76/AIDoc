@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:5.0
+    container_name: aidoc-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: rootpassword
+
+  mysql:
+    image: mysql:8.0
+    container_name: aidoc-mysql
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: aidoc_dev
+      MYSQL_USER: dev_user
+      MYSQL_PASSWORD: dev_password
+
+  aidoc-app:
+    build: .
+    container_name: aidoc-app
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mongodb
+      - mysql
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATA_MONGODB_HOST: mongodb
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/aidoc_dev?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=GMT%2B8
+      SPRING_DATASOURCE_USERNAME: dev_user
+      SPRING_DATASOURCE_PASSWORD: dev_password
+    restart: unless-stopped
+
+volumes:
+  mongodb_data:
+  mysql_data:

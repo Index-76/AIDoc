@@ -1,0 +1,112 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  profiles:
+    active: dev # 默认激活开发环境配置
+  application:
+    name: aidoc
+  mvc:
+    pathmatch:
+      matching-strategy: ant_path_matcher
+
+# 通用MyBatis配置
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.project.aidoc.entity
+  configuration:
+    map-underscore-to-camel-case: true
+
+# 通用JWT配置
+jwt:
+  expiration: 604800
+
+# 通用API配置
+api:
+  prefix: /api/v1
+
+# 通用日志配置
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+---
+# 开发环境配置
+spring:
+  config:
+    activate:
+      on-profile: dev
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+  data:
+    mongodb:
+      host: localhost
+      port: 27017
+      database: aidoc_dev
+      username: dev_user
+      password: dev_password
+      authentication-database: admin
+  datasource:
+    url: jdbc:mysql://localhost:3306/aidoc_dev?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=GMT%2B8
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+mybatis:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    cache-enabled: false
+
+jwt:
+  secret: aidoc_secret_dev
+
+logging:
+  level:
+    com.project.aidoc: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.data.mongodb: DEBUG
+    org.mybatis: DEBUG
+  file:
+    name: logs/aidoc_dev.log
+
+---
+# 生产环境配置
+spring:
+  config:
+    activate:
+      on-profile: prod
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+  data:
+    mongodb:
+      host: prod-mongodb-host
+      port: 27017
+      database: aidoc_prod
+      username: prod_user
+      password: prod_password
+      authentication-database: admin
+  datasource:
+    url: jdbc:mysql://prod-mysql-host:3306/aidoc_prod?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=GMT%2B8
+    username: prod_user
+    password: prod_password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+mybatis:
+  configuration:
+    cache-enabled: true
+
+jwt:
+  secret: aidoc_secret_prod
+
+logging:
+  level:
+    com.project.aidoc: WARN
+    org.springframework.security: WARN
+    org.springframework.data.mongodb: WARN
+    org.mybatis: WARN
+  file:
+    name: logs/aidoc_prod.log
