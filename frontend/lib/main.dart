@@ -4,6 +4,8 @@ import 'dart:async'; // 添加Timer导入
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart'; // 导入kIsWeb
 import 'config/server_config.dart'; // 导入服务器配置
+import 'login_page.dart'; // 导入登录页面
+import 'home_page.dart'; // 导入主页
 
 void main() async {
   // 初始化配置
@@ -19,13 +21,91 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'AIDoc Dashboard',
+      title: 'AIDoc - 文档管理系统',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         // This is the theme of your application.
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        useMaterial3: true,
+        // 设置全局字体系列以确保跨平台一致性
+        fontFamily: 'DroidSansFallback', // 使用我们添加的中文字体
+        visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: const MyHomePage(title: 'AIDoc Dashboard'),
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const LoginPage(), // 登录页面作为初始页面
+        '/home': (context) => const AuthenticatedHomePage(), // 主页，需要验证登录状态
+      },
+      // 防止默认的错误页面
+      onUnknownRoute: (settings) {
+        return MaterialPageRoute(
+          builder: (context) => const LoginPage(),
+        );
+      },
     );
+  }
+}
+
+// 包装后的主页，检查登录状态
+class AuthenticatedHomePage extends StatefulWidget {
+  const AuthenticatedHomePage({super.key});
+
+  @override
+  State<AuthenticatedHomePage> createState() => _AuthenticatedHomePageState();
+}
+
+class _AuthenticatedHomePageState extends State<AuthenticatedHomePage> {
+  bool _isCheckingAuth = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAuthentication();
+  }
+
+  Future<void> _checkAuthentication() async {
+    try {
+      String baseUrl = ServerConfig.baseUrl;
+      String meUrl = '$baseUrl/api/v1/auth/me';
+
+      final response = await http.get(
+        Uri.parse(meUrl),
+        headers: <String, String>{
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) {
+        // 如果未认证，重定向到登录页
+        if (mounted) {
+          Navigator.of(context).pushReplacementNamed('/');
+        }
+      }
+    } catch (e) {
+      // 网络错误或其他问题，重定向到登录页
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCheckingAuth = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isCheckingAuth) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    return const HomePage();
   }
 }
 
@@ -127,7 +207,7 @@ class _MyHomePageState extends State<MyHomePage> {
     // This method is rerun every time setState is called, for instance as done
     // by the _incrementCounter method above.
     //
-    // The Flutter framework has been optimized to make rerunning build methods
+    // The Flutter framework has been optimized to make rerun build methods
     // fast, so that you can just rebuild anything that needs updating rather
     // than having to individually change instances of widgets.
     return Scaffold(

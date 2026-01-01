@@ -1,7 +1,7 @@
 # 多阶段构建 AIDoc 项目
 
 # 第一阶段：构建后端 JAR
-FROM maven:3.8.4-openjdk-8 AS backend-builder
+FROM maven:3.9.4-openjdk-17 AS backend-builder
 
 WORKDIR /app
 
@@ -24,7 +24,7 @@ RUN flutter pub get
 RUN flutter build web
 
 # 第三阶段：运行后端服务并集成前端
-FROM openjdk:8-jre-slim
+FROM openjdk:17-jre-slim
 
 WORKDIR /app
 

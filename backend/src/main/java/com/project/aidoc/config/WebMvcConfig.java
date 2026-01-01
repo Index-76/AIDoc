@@ -19,9 +19,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        // 直接从Flutter Web构建目录提供静态资源
+        // 从classpath:/static/提供静态资源（已包含前端构建结果）
         registry.addResourceHandler("/**")
-                .addResourceLocations("file:frontend/build/web/")
+                .addResourceLocations("classpath:/static/")
                 .setCachePeriod(3600);
     }
 

@@ -8,9 +8,29 @@ spring:
     active: dev # 默认激活开发环境配置
   application:
     name: aidoc
-  mvc:
-    pathmatch:
-      matching-strategy: ant_path_matcher
+
+# Sa-Token配置
+sa-token:
+  # token名称 (同时也是cookie名称)
+  token-name: satoken
+  # token有效期 (单位: 秒) 默认30天, -1代表永久有效
+  timeout: 2592000
+  # token临时有效期 (单位: 秒) 默认30分钟
+  activity-timeout: 1800
+  # 是否允许同一账号并发登录 (为true时允许一起登录, 为false时新登录挤掉旧登录)
+  is-concurrent: true
+  # 在多人登录同一账号时，是否共用一个token (为true时所有登录共用一个token, 为false时每次登录新建一个token)
+  is-share: true
+  # token风格 (默认可取值：uuid、simple-uuid、random-32、random-64、random-128、tik)
+  token-style: uuid
+  # 是否输出操作日志
+  is-log: false
+  # 头部key (请求头中token的key名)
+  header: Authorization
+  # 启用自动续签 (如果token即将过期，则在本次请求中自动续签)
+  is-auto-refresh: true
+  # 当前会话注销时是否删除token信息
+  is-delete-token: true
 
 # 通用MyBatis配置
 mybatis:
@@ -18,10 +38,6 @@ mybatis:
   type-aliases-package: com.project.aidoc.entity
   configuration:
     map-underscore-to-camel-case: true
-
-# 通用JWT配置
-jwt:
-  expiration: 604800
 
 # 通用API配置
 api:
@@ -43,12 +59,7 @@ spring:
     time-zone: GMT+8
   data:
     mongodb:
-      host: localhost
-      port: 27017
-      database: aidoc_dev
-      username: dev_user
-      password: dev_password
-      authentication-database: admin
+      uri: mongodb://${dev_user:dev_user}:${dev_password:dev_password}@localhost:27017/aidoc_dev?authSource=admin
   datasource:
     url: jdbc:mysql://localhost:3306/aidoc_dev?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=GMT%2B8
     username: root
@@ -57,11 +68,8 @@ spring:
 
 mybatis:
   configuration:
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
     cache-enabled: false
-
-jwt:
-  secret: aidoc_secret_dev
 
 logging:
   level:
@@ -83,12 +91,7 @@ spring:
     time-zone: GMT+8
   data:
     mongodb:
-      host: prod-mongodb-host
-      port: 27017
-      database: aidoc_prod
-      username: prod_user
-      password: prod_password
-      authentication-database: admin
+      uri: mongodb://${prod_user:prod_user}:${prod_password:prod_password}@prod-mongodb-host:27017/aidoc_prod?authSource=admin
   datasource:
     url: jdbc:mysql://prod-mysql-host:3306/aidoc_prod?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=GMT%2B8
     username: prod_user
@@ -98,9 +101,6 @@ spring:
 mybatis:
   configuration:
     cache-enabled: true
-
-jwt:
-  secret: aidoc_secret_prod
 
 logging:
   level:

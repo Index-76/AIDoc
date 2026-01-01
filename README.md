@@ -12,15 +12,10 @@ AIDoc/
 │   └── ...
 ├── frontend/               # Flutter 前端应用
 │   ├── lib/
-│   ├── android/
-│   ├── ios/
 │   ├── web/
 │   ├── windows/
-│   ├── macos/
-│   ├── linux/
 │   ├── pubspec.yaml
 │   └── ...
-├── scripts/                # 部署脚本
 ├── docs/                   # 项目文档
 └── README.md
 ```
@@ -30,33 +25,82 @@ AIDoc/
 - **前端**: Flutter
 - **后端**: Spring Boot + MyBatis
 - **数据库**: MongoDB + MySQL
-- **安全框架**: Spring Security
+- **安全框架**: SaToken
 - **构建工具**: Maven (后端), pub (前端)
 
 ## 环境要求
 
-- Java 8+
+- Java 22+
 - Maven 3.6+
 - Flutter 3.0+
 - MongoDB 4.0+
 - MySQL 5.7+ (用于 MyBatis)
 
-## 快速开始
+## 部署步骤
 
-### 后端设置
+#### 1. 构建前端 Web 应用
+
+在 `frontend` 目录下运行:
+
+```bash
+flutter clean
+flutter pub get
+flutter build web --no-wasm-dry-run
+```
+
+#### 2. 部署前端到后端
+
+将 `frontend/build/web` 目录下的所有文件复制到 `backend/src/main/resources/static` 目录中:
+
+**Windows:**
+
+```cmd
+xcopy /E /I /Y "frontend\build\web" "backend\src\main\resources\static"
+```
+
+**Linux/macOS:**
+
+```bash
+cp -r frontend/build/web/* backend/src/main/resources/static/
+```
+
+#### 3. 启动后端服务
+
+1. 确保 MongoDB 和 MySQL 服务已启动
+2. 修改 `backend/src/main/resources/application.yml` 中的数据库连接配置
+3. 在 `backend` 目录下运行:
+
+```bash
+mvn clean compile spring-boot:run
+```
+
+后端服务将在 `http://localhost:8080` 启动，可以直接访问 Web 前端或使用 API。
+
+#### 4. 桌面应用
+
+如需运行桌面应用（Windows），在 `frontend` 目录下运行:
+
+```bash
+flutter build windows
+```
+
+构建完成后，在 `frontend\build\windows\x64\runner\Release` 目录中找到可执行文件。
+
+## 开发模式
+
+### 后端开发
 
 1. 启动 MongoDB 和 MySQL 服务
 2. 修改 `backend/src/main/resources/application.yml` 中的数据库连接配置
 3. 在 `backend` 目录下运行:
 
 ```bash
-mvn clean install
 mvn spring-boot:run
 ```
 
-### 前端设置
+### 前端开发
 
-1. 在 `frontend` 目录下运行:
+在 `frontend` 目录下运行:
 
 ```bash
 flutter pub get
@@ -68,16 +112,17 @@ flutter run
 - 后端配置: `backend/src/main/resources/application.yml`
 - 前端配置: `frontend/lib/config/`
 
-## 部署
-
-部署脚本位于 `scripts/` 目录下:
-
-- `scripts/deploy.sh` - Linux/macOS 部署脚本
-- `scripts/deploy.bat` - Windows 部署脚本
-
 ## API 文档
 
 后端 API 文档请参考 `docs/api.md`
+
+## SQL 文档
+
+Mysql 配置参考 `docs/database_schema.sql`
+
+## 测试
+
+使用 Apifox 进行 api 测试
 
 ## 贡献
 
