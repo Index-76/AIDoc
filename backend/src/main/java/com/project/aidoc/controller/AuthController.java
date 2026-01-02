@@ -51,6 +51,19 @@ public class AuthController {
 
     @PostMapping("/register")
     public Result<String> register(@RequestBody User user) {
+        // 检查必填字段是否为空
+        if (user.getUsername() == null || user.getUsername().trim().isEmpty()) {
+            return Result.error(400, "用户名不能为空");
+        }
+        
+        if (user.getEmail() == null || user.getEmail().trim().isEmpty()) {
+            return Result.error(400, "邮箱不能为空");
+        }
+        
+        if (user.getPassword() == null || user.getPassword().trim().isEmpty()) {
+            return Result.error(400, "密码不能为空");
+        }
+        
         try {
             // 检查用户名是否已存在
             if (userService.findByUsername(user.getUsername()) != null) {
@@ -76,6 +89,11 @@ public class AuthController {
 
     @PostMapping("/logout")
     public Result<String> logout() {
+        // 检查用户是否已登录
+        if (!StpUtil.isLogin()) {
+            return Result.error(401, "用户未登录");
+        }
+        
         // 登出
         StpUtil.logout();
         return Result.success("退出成功");
