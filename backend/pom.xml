@@ -73,6 +73,7 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
+            <version>1.18.32</version>  <!-- 更新Lombok版本以兼容Java 22 -->
             <optional>true</optional>
         </dependency>
 
@@ -128,7 +129,6 @@
                 <version>${spring-boot.version}</version>
                 <configuration>
                     <mainClass>com.project.aidoc.AiDocApplication</mainClass>
-                    <skip>true</skip>
                 </configuration>
                 <executions>
                     <execution>

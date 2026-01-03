@@ -1,16 +1,70 @@
 import 'package:flutter/material.dart';
-import 'dart:convert';
 import 'dart:async'; // 添加Timer导入
-import 'package:http/http.dart' as http;
-import 'package:flutter/foundation.dart'; // 导入kIsWeb
 import 'config/server_config.dart'; // 导入服务器配置
 import 'login_page.dart'; // 导入登录页面
 import 'home_page.dart'; // 导入主页
+import 'config/font_config.dart'; // 导入字体配置
+import 'config/auth_config.dart'; // 导入认证配置
+
+// 警告提示组件
+class WarningTips extends StatelessWidget {
+  final String message;
+  final VoidCallback? onTap;
+
+  const WarningTips(this.message, {this.onTap, super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.8), // 使用withValues替代withOpacity
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.grey.shade600),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black,
+              blurRadius: 5,
+              offset: Offset(0, 2),
+              blurStyle: BlurStyle.normal,
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.warning_amber_rounded,
+              color: Colors.orange,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text( // 移除 const，因为 message 不是常量
+              message,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontFamily: 'Equilium',
+                fontStyle: FontStyle.normal,
+                fontWeight: FontWeight.w500,
+                decoration: TextDecoration.none,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 void main() async {
   // 初始化配置
   WidgetsFlutterBinding.ensureInitialized();
   await ServerConfig.initialize();
+  await AuthConfig.initialize(); // 初始化认证配置
   runApp(const MyApp());
 }
 
@@ -23,30 +77,126 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'AIDoc - 文档管理系统',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        // This is the theme of your application.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-        // 设置全局字体系列以确保跨平台一致性
-        fontFamily: 'DroidSansFallback', // 使用我们添加的中文字体
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-      ),
-      initialRoute: '/',
+      theme: FontConfig.createTheme(), // 使用新的字体配置主题
+      initialRoute: '/init',
       routes: {
-        '/': (context) => const LoginPage(), // 登录页面作为初始页面
+        '/init': (context) => const InitPage(),
+        '/': (context) => const AuthCheckLoginPage(), // 登录页面
+        '/login': (context) => const AuthCheckLoginPage(), // 登录页面的别名
         '/home': (context) => const AuthenticatedHomePage(), // 主页，需要验证登录状态
-      },
-      // 防止默认的错误页面
-      onUnknownRoute: (settings) {
-        return MaterialPageRoute(
-          builder: (context) => const LoginPage(),
-        );
       },
     );
   }
 }
 
-// 包装后的主页，检查登录状态
+// 新增：初始化页面，用于检查认证状态
+class InitPage extends StatefulWidget {
+  const InitPage({super.key});
+
+  @override
+  State<InitPage> createState() => _InitPageState();
+}
+
+class _InitPageState extends State<InitPage> {
+  @override
+  void initState() {
+    super.initState();
+    
+    // 使用Future.microtask确保在widget构建完成后执行检查
+    // 并且在异步操作前就获取路由信息
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAuthAndRedirect();
+    });
+  }
+
+  // 检查认证状态并重定向
+  Future<void> _checkAuthAndRedirect() async {
+    // 确保AuthConfig已经初始化
+    await Future.delayed(const Duration(milliseconds: 100));
+    
+    bool isLoggedIn = AuthConfig.isLoggedIn();
+
+    // 白名单路由（无需认证即可访问）
+    final List<String> authWhitelist = ['/', '/login'];
+    
+    // 在异步操作后再次获取当前路由，使用callback方式
+    if (mounted) {
+      String currentRoute = ModalRoute.of(context)?.settings.name ?? '/';
+      
+      if (!authWhitelist.contains(currentRoute) && !isLoggedIn) {
+        // 未登录用户试图访问非白名单路由，重定向到登录页
+        if (mounted) {
+          Navigator.of(context).pushReplacementNamed('/');
+        }
+      } else if (authWhitelist.contains(currentRoute) && isLoggedIn) {
+        // 已登录用户访问登录页面，重定向到主页
+        if (mounted) {
+          Navigator.of(context).pushReplacementNamed('/home');
+        }
+      } else {
+        // 正常路由跳转
+        if (authWhitelist.contains(currentRoute)) {
+          Navigator.of(context).pushReplacementNamed('/');
+        } else {
+          Navigator.of(context).pushReplacementNamed('/home');
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 20),
+            const Text('正在加载...'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+// 新增：检查认证状态的登录页面包装器
+class AuthCheckLoginPage extends StatefulWidget {
+  const AuthCheckLoginPage({super.key});
+
+  @override
+  State<AuthCheckLoginPage> createState() => _AuthCheckLoginPageState();
+}
+
+class _AuthCheckLoginPageState extends State<AuthCheckLoginPage> {
+  @override
+  void initState() {
+    super.initState();
+    // 检查登录状态，如果已登录则跳转到主页
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (AuthConfig.isLoggedIn() && mounted) {
+        // 使用addPostFrameCallback确保在下一帧执行导航操作
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            // 直接重定向到主页，不再显示提示
+            Navigator.of(context).pushReplacementNamed('/home');
+          }
+        });
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: LoginPage(),
+    );
+  }
+}
+
+// 新增：检查认证状态的主页包装器
 class AuthenticatedHomePage extends StatefulWidget {
   const AuthenticatedHomePage({super.key});
 
@@ -55,219 +205,27 @@ class AuthenticatedHomePage extends StatefulWidget {
 }
 
 class _AuthenticatedHomePageState extends State<AuthenticatedHomePage> {
-  bool _isCheckingAuth = true;
-
   @override
   void initState() {
     super.initState();
-    _checkAuthentication();
-  }
-
-  Future<void> _checkAuthentication() async {
-    try {
-      String baseUrl = ServerConfig.baseUrl;
-      String meUrl = '$baseUrl/api/v1/auth/me';
-
-      final response = await http.get(
-        Uri.parse(meUrl),
-        headers: <String, String>{
-          'Content-Type': 'application/json; charset=UTF-8',
-        },
-      ).timeout(const Duration(seconds: 10));
-
-      if (response.statusCode != 200) {
-        // 如果未认证，重定向到登录页
-        if (mounted) {
-          Navigator.of(context).pushReplacementNamed('/');
-        }
-      }
-    } catch (e) {
-      // 网络错误或其他问题，重定向到登录页
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/');
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isCheckingAuth = false;
+    // 检查登录状态，如果未登录则跳转到登录页
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!AuthConfig.isLoggedIn() && mounted) {
+        // 使用addPostFrameCallback确保在下一帧执行导航操作
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            // 直接重定向到登录页，不再显示提示
+            Navigator.of(context).pushReplacementNamed('/');
+          }
         });
       }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_isCheckingAuth) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
-    return const HomePage();
-  }
-}
-
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-  String _backendStatus = 'Checking...';
-  Color _statusColor = Colors.orange;
-  Timer? _timer; // 用于存储定时器引用
-
-  @override
-  void initState() {
-    super.initState();
-    _checkBackendHealth();
-    // 每5秒自动检查一次后端健康状态
-    _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      _checkBackendHealth();
     });
   }
 
   @override
-  void dispose() {
-    // 清理定时器以避免内存泄漏
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
-  }
-
-  // 根据配置返回API基础URL
-  String getApiBaseUrl() {
-    return ServerConfig.baseUrl;
-  }
-
-  Future<void> _checkBackendHealth() async {
-    try {
-      // 根据平台构建适当的API URL
-      String baseUrl = getApiBaseUrl();
-      String healthUrl = '$baseUrl/api/v1/health';
-      
-      final response = await http.get(
-        Uri.parse(healthUrl),
-        headers: <String, String>{
-          'Content-Type': 'application/json; charset=UTF-8',
-        },
-      ).timeout(const Duration(seconds: 10)); // 添加超时处理
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final status = data['status'] as String?;
-        
-        setState(() {
-          _backendStatus = (status == 'UP') ? 'Connected' : 'Disconnected';
-          _statusColor = (status == 'UP') ? Colors.green : Colors.red;
-        });
-      } else {
-        setState(() {
-          _backendStatus = 'Error';
-          _statusColor = Colors.red;
-        });
-      }
-    } catch (e) {
-      // 捕获所有异常，包括超时、网络错误等
-      setState(() {
-        _backendStatus = 'Offline';
-        _statusColor = Colors.red;
-      });
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerun build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8.0),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(4.0),
-                color: _statusColor,
-              ),
-              child: Text(
-                'Backend: $_backendStatus',
-                style: const TextStyle(
-                  color: Colors.white,
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Number of button taps:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ),
+    return const Scaffold(
+      body: HomePage(),
     );
   }
 }

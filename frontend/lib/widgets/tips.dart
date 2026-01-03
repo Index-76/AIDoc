@@ -99,7 +99,7 @@ class _TooltipOverlayState extends State<TooltipOverlay>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.8),
+          color: Colors.black.withValues(alpha: 0.8),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(

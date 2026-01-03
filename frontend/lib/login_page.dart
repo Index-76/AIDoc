@@ -1,13 +1,69 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'config/server_config.dart';
+import 'config/server_config.dart'; // 导入服务器配置
+import 'home_page.dart'; // 导入主页
+import 'config/auth_config.dart'; // 导入认证配置
+
+// 错误提示组件
+class ErrorTips extends StatelessWidget {
+  final String message;
+  final VoidCallback? onTap;
+
+  const ErrorTips(this.message, {this.onTap, super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.8), // 使用withValues替代withOpacity
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.grey.shade600),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black,
+              blurRadius: 5,
+              offset: Offset(0, 2),
+              blurStyle: BlurStyle.normal,
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.error_rounded,
+              color: Colors.red,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              message,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontFamily: 'Equilium',
+                fontStyle: FontStyle.normal,
+                fontWeight: FontWeight.w500,
+                decoration: TextDecoration.none,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
   @override
-  _LoginPageState createState() => _LoginPageState();
+  State<LoginPage> createState() => _LoginPageState();
 }
 
 class _LoginPageState extends State<LoginPage> {
@@ -17,11 +73,56 @@ class _LoginPageState extends State<LoginPage> {
   bool _isLoading = false;
   String _errorMessage = '';
   bool _showRegisterForm = false; // 控制显示登录还是注册表单
+  bool _showErrorTip = false; // 控制显示错误提示
+
+  @override
+  void initState() {
+    super.initState();
+    _checkLoggedInStatus();
+  }
+
+  // 检查用户是否已经登录，如果已登录则重定向到主页
+  Future<void> _checkLoggedInStatus() async {
+    try {
+      String baseUrl = ServerConfig.baseUrl;
+      String meUrl = '$baseUrl/api/v1/auth/me';
+
+      final response = await http.get(
+        Uri.parse(meUrl),
+        headers: <String, String>{
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['code'] == 200) {
+          // 用户已经登录，更新本地认证状态
+          await AuthConfig.setLoggedIn(
+            data['data']['token'] ?? '', 
+            data['data']['username'] ?? '',
+          );
+          
+          // 重定向到主页并清除导航栈
+          if (mounted) {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => const HomePage()),
+              (Route<dynamic> route) => false,
+            );
+          }
+        }
+      }
+    } catch (e) {
+      // 如果检查失败，允许用户访问登录页面
+      // 这可能表示用户未登录或网络问题
+    }
+  }
 
   Future<void> _login() async {
     if (_usernameController.text.isEmpty || _passwordController.text.isEmpty) {
       setState(() {
         _errorMessage = '用户名和密码不能为空';
+        _showErrorTip = true;
       });
       return;
     }
@@ -29,6 +130,7 @@ class _LoginPageState extends State<LoginPage> {
     setState(() {
       _isLoading = true;
       _errorMessage = '';
+      _showErrorTip = false;
     });
 
     try {
@@ -49,29 +151,43 @@ class _LoginPageState extends State<LoginPage> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['code'] == 200) {
-          // 登录成功，跳转到主页
-          Navigator.of(context).pushReplacementNamed('/home');
+          // 登录成功，保存认证信息
+          await AuthConfig.setLoggedIn(
+            data['data']['token'], 
+            data['data']['username'],
+          );
+          
+          // 跳转到主页并清除导航栈
+          if (mounted) {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => const HomePage()),
+              (Route<dynamic> route) => false,
+            );
+          }
         } else {
           String message = data['msg'] ?? '登录失败';
           setState(() {
             _errorMessage = message;
+            _showErrorTip = true;
           });
         }
       } else {
-        final data = jsonDecode(response.body);
-        String message = data['msg'] ?? '登录失败';
         setState(() {
-          _errorMessage = message;
+          _errorMessage = '网络错误，请重试';
+          _showErrorTip = true;
         });
       }
     } catch (e) {
       setState(() {
-        _errorMessage = '网络错误或服务器不可用';
+        _errorMessage = '登录请求失败: $e';
+        _showErrorTip = true;
       });
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -81,6 +197,7 @@ class _LoginPageState extends State<LoginPage> {
         _emailController.text.isEmpty) {
       setState(() {
         _errorMessage = '用户名、邮箱和密码不能为空';
+        _showErrorTip = true;
       });
       return;
     }
@@ -88,6 +205,7 @@ class _LoginPageState extends State<LoginPage> {
     setState(() {
       _isLoading = true;
       _errorMessage = '';
+      _showErrorTip = false;
     });
 
     try {
@@ -109,29 +227,37 @@ class _LoginPageState extends State<LoginPage> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['code'] == 200) {
-          // 注册成功，跳转到主页
-          Navigator.of(context).pushReplacementNamed('/home');
+          // 注册成功，跳转到主页并清除导航栈
+          if (mounted) {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => const HomePage()),
+              (Route<dynamic> route) => false,
+            );
+          }
         } else {
           String message = data['msg'] ?? '注册失败';
           setState(() {
             _errorMessage = message;
+            _showErrorTip = true;
           });
         }
       } else {
-        final data = jsonDecode(response.body);
-        String message = data['msg'] ?? '注册失败';
         setState(() {
-          _errorMessage = message;
+          _errorMessage = '网络错误，请重试';
+          _showErrorTip = true;
         });
       }
     } catch (e) {
       setState(() {
-        _errorMessage = '网络错误或服务器不可用';
+        _errorMessage = '注册请求失败: $e';
+        _showErrorTip = true;
       });
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -139,104 +265,120 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AIDoc - 登录'),
+        title: Text(
+          _showRegisterForm ? '注册' : '登录',
+          style: Theme.of(context).textTheme.titleLarge, // 使用主题标题样式
+        ),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        // 确保不显示返回按钮，按照AppBar返回按钮控制规范
+        automaticallyImplyLeading: false,
       ),
       body: Center(
-        child: Container(
-          padding: const EdgeInsets.all(20.0),
-          width: 400,
-          child: Card(
-            elevation: 8,
-            child: Container(
-              padding: const EdgeInsets.all(30.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.account_circle,
-                    size: 100,
-                    color: Colors.blue,
-                  ),
-                  const SizedBox(height: 20),
-                  TextField(
-                    controller: _usernameController,
-                    decoration: const InputDecoration(
-                      labelText: '用户名',
-                      prefixIcon: Icon(Icons.person),
-                      border: OutlineInputBorder(),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints.tightFor(width: 400),
+            child: Card(
+              elevation: 8,
+              child: Container(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.person, // 修改为用户图标
+                      size: 100,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
-                    enabled: !_isLoading,
-                  ),
-                  const SizedBox(height: 10),
-                  if (_showRegisterForm) ...[
+                    const SizedBox(height: 24),
+                    Text(
+                      _showRegisterForm ? '创建账户' : '登录到 AIDoc',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
                     TextField(
-                      controller: _emailController,
+                      controller: _usernameController,
                       decoration: const InputDecoration(
-                        labelText: '邮箱',
-                        prefixIcon: Icon(Icons.email),
+                        labelText: '用户名',
+                        prefixIcon: Icon(Icons.person),
                         border: OutlineInputBorder(),
                       ),
-                      enabled: !_isLoading,
                     ),
-                    const SizedBox(height: 10),
-                  ],
-                  TextField(
-                    controller: _passwordController,
-                    decoration: const InputDecoration(
-                      labelText: '密码',
-                      prefixIcon: Icon(Icons.lock),
-                      border: OutlineInputBorder(),
-                    ),
-                    obscureText: true,
-                    enabled: !_isLoading,
-                  ),
-                  const SizedBox(height: 20),
-                  if (_errorMessage.isNotEmpty)
-                    Container(
-                      padding: const EdgeInsets.all(8.0),
-                      decoration: BoxDecoration(
-                        color: Colors.red[100],
-                        borderRadius: BorderRadius.circular(4.0),
+                    const SizedBox(height: 16),
+                    if (_showRegisterForm)
+                      TextField(
+                        controller: _emailController,
+                        decoration: const InputDecoration(
+                          labelText: '邮箱',
+                          prefixIcon: Icon(Icons.email),
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.emailAddress,
+                      )
+                    else
+                      const SizedBox.shrink(),
+                    if (_showRegisterForm)
+                      const SizedBox(height: 16)
+                    else
+                      const SizedBox.shrink(),
+                    TextField(
+                      controller: _passwordController,
+                      decoration: const InputDecoration(
+                        labelText: '密码',
+                        prefixIcon: Icon(Icons.lock),
+                        border: OutlineInputBorder(),
                       ),
+                      obscureText: true,
+                    ),
+                    // 使用tips组件显示错误信息
+                    if (_showErrorTip && _errorMessage.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: ErrorTips(_errorMessage, 
+                          onTap: () {
+                            setState(() {
+                              _showErrorTip = false;
+                            });
+                          },
+                        ),
+                      ),
+                    const SizedBox(height: 24),
+                    if (_isLoading)
+                      const CircularProgressIndicator()
+                    else
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _showRegisterForm ? _register : _login,
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: Text(
+                            _showRegisterForm ? '注册' : '登录',
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _showRegisterForm = !_showRegisterForm;
+                          _errorMessage = '';
+                          _showErrorTip = false;
+                        });
+                      },
                       child: Text(
-                        _errorMessage,
-                        style: const TextStyle(color: Colors.red),
+                        _showRegisterForm
+                            ? '已有账户？点击登录'
+                            : '没有账户？点击注册',
                       ),
                     ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : (_showRegisterForm ? _register : _login),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                      ),
-                      child: _isLoading
-                          ? const CircularProgressIndicator()
-                          : Text(
-                              _showRegisterForm ? '注册' : '登录',
-                              style: const TextStyle(fontSize: 18),
-                            ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _showRegisterForm = !_showRegisterForm;
-                        _errorMessage = '';
-                      });
-                    },
-                    child: Text(
-                      _showRegisterForm 
-                        ? '已有账户？点击登录' 
-                        : '没有账户？点击注册',
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
