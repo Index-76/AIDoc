@@ -44,6 +44,11 @@ class AuthConfig {
     await prefs.remove('user_id');
   }
 
+  // 清除认证信息
+  static Future<void> clearAuthInfo() async {
+    await setLoggedOut();
+  }
+
   // 获取用户token
   static String? getUserToken() {
     return _userToken;

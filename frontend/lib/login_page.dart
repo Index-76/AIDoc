@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'config/server_config.dart'; // 导入服务器配置
-import 'home_page.dart'; // 导入主页
-import 'config/auth_config.dart'; // 导入认证配置
+import 'config/server_config.dart';
+import 'home_page.dart';
+import 'config/auth_config.dart';
 
-// 错误提示组件
 class ErrorTips extends StatelessWidget {
   final String message;
   final VoidCallback? onTap;
@@ -19,7 +18,7 @@ class ErrorTips extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.8), // 使用withValues替代withOpacity
+          color: Colors.black.withValues(alpha: 0.8),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: Colors.grey.shade600),
           boxShadow: const [
@@ -69,11 +68,11 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController(); // 添加邮箱控制器
+  final TextEditingController _emailController = TextEditingController();
   bool _isLoading = false;
   String _errorMessage = '';
-  bool _showRegisterForm = false; // 控制显示登录还是注册表单
-  bool _showErrorTip = false; // 控制显示错误提示
+  bool _showRegisterForm = false;
+  bool _showErrorTip = false;
 
   @override
   void initState() {
@@ -81,7 +80,6 @@ class _LoginPageState extends State<LoginPage> {
     _checkLoggedInStatus();
   }
 
-  // 检查用户是否已经登录，如果已登录则重定向到主页
   Future<void> _checkLoggedInStatus() async {
     try {
       String baseUrl = ServerConfig.baseUrl;

@@ -27,6 +27,7 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-mongodb</artifactId>
@@ -38,10 +39,38 @@
             <version>3.0.3</version>
         </dependency>
 
+        <!-- 添加mybatis相关显式依赖 -->
+        <dependency>
+            <groupId>org.mybatis</groupId>
+            <artifactId>mybatis</artifactId>
+            <version>3.5.14</version>
+        </dependency>
+        
+        <dependency>
+            <groupId>org.mybatis</groupId>
+            <artifactId>mybatis-spring</artifactId>
+            <version>3.0.3</version>
+        </dependency>
+
         <dependency>
             <groupId>cn.dev33</groupId>
             <artifactId>sa-token-spring-boot3-starter</artifactId>
             <version>1.37.0</version>
+        </dependency>
+
+        <!-- Sa-Token核心依赖 -->
+        <dependency>
+            <groupId>cn.dev33</groupId>
+            <artifactId>sa-token-core</artifactId>
+            <version>1.37.0</version>
+        </dependency>
+
+        <!-- 显式声明jakarta.servlet-api依赖 -->
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <version>6.0.0</version>
+            <scope>provided</scope>
         </dependency>
 
         <!-- JWT支持 -->
@@ -63,6 +92,13 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Jackson databind显式依赖 -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.15.3</version>
+        </dependency>
+
         <!-- Spring Security用于BCrypt -->
         <dependency>
             <groupId>org.springframework.security</groupId>
@@ -73,7 +109,7 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>1.18.32</version>  <!-- 更新Lombok版本以兼容Java 22 -->
+            <version>1.18.32</version>
             <optional>true</optional>
         </dependency>
 
@@ -98,6 +134,7 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        
     </dependencies>
     <dependencyManagement>
         <dependencies>
