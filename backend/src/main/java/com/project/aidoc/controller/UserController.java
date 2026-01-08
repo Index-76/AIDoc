@@ -24,10 +24,23 @@ public class UserController {
     private UserMapper userMapper;
 
     /**
-     * 根据ID获取用户
+     * 根据ID获取用户，仅允许用户访问自己的信息
      */
     @GetMapping("/{id}")
-    public Result<User> getUserById(@PathVariable Long id) {
+    public Result<User> getUserById(@PathVariable("id") Long id) {
+        // 检查用户是否已登录
+        if (!cn.dev33.satoken.stp.StpUtil.isLogin()) {
+            return Result.error(401, "用户未登录");
+        }
+        
+        // 获取当前登录用户的ID
+        Long currentUserId = Long.parseLong(cn.dev33.satoken.stp.StpUtil.getLoginIdAsString());
+        
+        // 检查请求的ID是否与当前登录用户ID匹配
+        if (!currentUserId.equals(id)) {
+            return Result.error(403, "无权访问其他用户信息");
+        }
+        
         User user = userMapper.selectById(id);
         if (user != null) {
             return Result.success(user);
@@ -49,10 +62,23 @@ public class UserController {
     }
 
     /**
-     * 更新用户信息
+     * 更新用户信息，仅允许用户更新自己的信息
      */
     @PutMapping("/{id}")
-    public Result<String> updateUser(@PathVariable Long id, @RequestBody User user) {
+    public Result<String> updateUser(@PathVariable("id") Long id, @RequestBody User user) {
+        // 检查用户是否已登录
+        if (!cn.dev33.satoken.stp.StpUtil.isLogin()) {
+            return Result.error(401, "用户未登录");
+        }
+        
+        // 获取当前登录用户的ID
+        Long currentUserId = Long.parseLong(cn.dev33.satoken.stp.StpUtil.getLoginIdAsString());
+        
+        // 检查请求的ID是否与当前登录用户ID匹配
+        if (!currentUserId.equals(id)) {
+            return Result.error(403, "无权更新其他用户信息");
+        }
+        
         user.setUserid(id);
         try {
             userMapper.updateById(user);
@@ -63,10 +89,23 @@ public class UserController {
     }
 
     /**
-     * 删除用户
+     * 删除用户，仅允许用户删除自己的信息
      */
     @DeleteMapping("/{id}")
-    public Result<String> deleteUser(@PathVariable Long id) {
+    public Result<String> deleteUser(@PathVariable("id") Long id) {
+        // 检查用户是否已登录
+        if (!cn.dev33.satoken.stp.StpUtil.isLogin()) {
+            return Result.error(401, "用户未登录");
+        }
+        
+        // 获取当前登录用户的ID
+        Long currentUserId = Long.parseLong(cn.dev33.satoken.stp.StpUtil.getLoginIdAsString());
+        
+        // 检查请求的ID是否与当前登录用户ID匹配
+        if (!currentUserId.equals(id)) {
+            return Result.error(403, "无权删除其他用户信息");
+        }
+        
         int result = userMapper.deleteById(id);
         if (result > 0) {
             return Result.success("用户删除成功");
