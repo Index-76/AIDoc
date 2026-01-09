@@ -5,7 +5,6 @@ import 'login_page.dart';
 import 'home_page.dart';
 import 'config/font_config.dart';
 import 'config/auth_config.dart';
-import 'widgets/tips.dart';
 
 class WarningTips extends StatelessWidget {
   final String message;
@@ -98,7 +97,7 @@ class _InitPageState extends State<InitPage> {
   @override
   void initState() {
     super.initState();
-    
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkAuthAndRedirect();
     });
@@ -106,14 +105,14 @@ class _InitPageState extends State<InitPage> {
 
   Future<void> _checkAuthAndRedirect() async {
     await Future.delayed(const Duration(milliseconds: 100));
-    
+
     bool isLoggedIn = AuthConfig.isLoggedIn();
 
     final List<String> authWhitelist = ['/', '/login'];
-    
+
     if (mounted) {
       String currentRoute = ModalRoute.of(context)?.settings.name ?? '/';
-      
+
       if (!authWhitelist.contains(currentRoute) && !isLoggedIn) {
         if (mounted) {
           Navigator.of(context).pushReplacementNamed('/');
@@ -148,7 +147,6 @@ class _InitPageState extends State<InitPage> {
     );
   }
 }
-
 
 class AuthCheckLoginPage extends StatefulWidget {
   const AuthCheckLoginPage({super.key});

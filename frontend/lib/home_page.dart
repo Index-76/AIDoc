@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:logger/logger.dart'; // 导入logger包
 import 'services/api_service.dart';
 import 'models/chat_message.dart';
 import 'widgets/tips.dart';
@@ -105,6 +106,9 @@ class _MyHomePageState extends State<MyHomePage> {
   final FocusNode _textFieldFocusNode = FocusNode();
   bool _isLoading = false;
 
+  // 创建logger实例
+  final Logger _logger = Logger();
+
   // 为每个区域创建 GlobalKey
   final GlobalKey<FileSectionState> _waitingSectionKey = GlobalKey();
   final GlobalKey<FileSectionState> _readSectionKey = GlobalKey();
@@ -200,28 +204,22 @@ class _MyHomePageState extends State<MyHomePage> {
   // 调用后端API
   Future<String?> _callBackendAPI(String question, String documentText) async {
     try {
-      // 使用新的带工具决策的API端点
-      final response = await ApiService.chatWithToolDecision(question);
+      // 使用实际存在的API端点
+      final response = await ApiService.sendChatMessage(question);
 
-      if (response != null) {
-        // 检查是否使用了工具
-        final toolUsed = response['toolUsed'] ?? false;
-        final toolInfo = response['toolInfo'];
-        final aiResponse = response['response'];
-
-        if (toolUsed && toolInfo != null) {
-          print('工具已使用: ${toolInfo['specificToolName']}');
-        } else {
-          print('未使用工具，直接AI回复');
-        }
+      if (response['code'] == 200) {
+        // 检查响应格式是否符合预期
+        final aiResponse = response['data'] != null
+            ? response['data']['response'] ?? response['message']
+            : response['message'];
 
         return aiResponse ?? '未收到后端响应';
       } else {
-        print('API调用失败或返回null');
+        _logger.e('API调用失败或返回null');
         return '后端服务暂时不可用，请稍后重试';
       }
     } catch (e) {
-      print('API调用异常: $e');
+      _logger.e('API调用异常: $e');
       return '连接后端服务时发生错误';
     }
   }
@@ -257,7 +255,7 @@ class _MyHomePageState extends State<MyHomePage> {
         );
       }
     } catch (e) {
-      print('登出时发生错误: $e');
+      _logger.e('登出时发生错误: $e');
       // 即使API调用失败，也要清除本地认证信息
       await ApiService.clearAuthInfo();
 

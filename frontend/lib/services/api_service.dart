@@ -1,10 +1,22 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'dart:io' as io;
 import 'package:http_parser/http_parser.dart';
-import 'dart:io';
+import 'dart:typed_data';
 import '../config/server_config.dart';
 import '../config/auth_config.dart';
-import '../models/file_info.dart';
+
+// 虚拟文件类，用于在Web环境中适配uploadFile方法
+class _VirtualFileForWeb {
+  final Uint8List bytes;
+  final String name;
+
+  _VirtualFileForWeb(this.bytes, this.name);
+
+  Uint8List readAsBytesSync() => bytes;
+  
+  String get path => name;
+}
 
 class ApiService {
   static Future<Map<String, dynamic>> login(
@@ -42,7 +54,7 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> register(
-      String username, String password) async {
+      String username, String email, String password) async {
     try {
       String baseUrl = ServerConfig.baseUrl;
       String registerUrl = '$baseUrl/api/v1/auth/register';
@@ -55,6 +67,7 @@ class ApiService {
             },
             body: jsonEncode(<String, String>{
               'username': username,
+              'email': email,
               'password': password,
             }),
           )
@@ -149,8 +162,8 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> uploadFile(
-      File file, String fileName) async {
+  static Future<Map<String, dynamic>> uploadFile(dynamic file, String fileName,
+      [String section = '']) async {
     try {
       String baseUrl = ServerConfig.baseUrl;
       String uploadUrl = '$baseUrl/api/v1/files/upload';
@@ -160,14 +173,31 @@ class ApiService {
       request.headers['Authorization'] =
           'Bearer ${AuthConfig.getUserToken() ?? ''}';
 
-      var multipartFile = http.MultipartFile.fromBytes(
-        'file',
-        await file.readAsBytes(),
-        filename: fileName,
-        contentType: MediaType('application', 'octet-stream'),
-      );
+      // 根据文件类型处理上传
+      if (file is io.File) {
+        // 原生文件处理
+        var multipartFile = http.MultipartFile.fromBytes(
+          'file',
+          await file.readAsBytes(),
+          filename: fileName,
+          contentType: MediaType('application', 'octet-stream'),
+        );
+        request.files.add(multipartFile);
+      } else if (file is _VirtualFileForWeb) {
+        // Web环境文件处理
+        var multipartFile = http.MultipartFile.fromBytes(
+          'file',
+          file.readAsBytesSync(), // 需要添加这个方法
+          filename: fileName,
+          contentType: MediaType('application', 'octet-stream'),
+        );
+        request.files.add(multipartFile);
+      }
 
-      request.files.add(multipartFile);
+      // 添加section参数
+      if (section.isNotEmpty) {
+        request.fields['section'] = section;
+      }
 
       var response = await request.send();
       var responseString = await response.stream.bytesToString();
@@ -183,22 +213,13 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> deleteFile(String fileId, [String path = '']) async {
+  static Future<Map<String, dynamic>> deleteFile(String fileId) async {
     try {
       String baseUrl = ServerConfig.baseUrl;
       String deleteUrl = '$baseUrl/api/v1/files/$fileId';
-      
-      // 添加路径参数
-      Map<String, String> params = {
-        'path': path,
-      };
-      
-      String queryString = params.entries
-          .map((e) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
-          .join('&');
 
       final response = await http.delete(
-        Uri.parse('$deleteUrl?$queryString'),
+        Uri.parse(deleteUrl),
         headers: <String, String>{
           'Authorization': 'Bearer ${AuthConfig.getUserToken() ?? ''}',
         },
@@ -242,7 +263,7 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> moveFile(
-      String fileId, String newName) async {
+      String fileId, String destinationSectionId) async {
     try {
       String baseUrl = ServerConfig.baseUrl;
       String moveUrl = '$baseUrl/api/v1/files/$fileId/move';
@@ -250,6 +271,36 @@ class ApiService {
       final response = await http
           .post(
             Uri.parse(moveUrl),
+            headers: <String, String>{
+              'Content-Type': 'application/json; charset=UTF-8',
+              'Authorization': 'Bearer ${AuthConfig.getUserToken() ?? ''}',
+            },
+            body: jsonEncode(<String, String>{
+              'destinationSectionId': destinationSectionId,
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        Map<String, dynamic> data = jsonDecode(response.body);
+        return data;
+      } else {
+        return {'code': response.statusCode, 'message': '移动文件失败', 'data': null};
+      }
+    } catch (e) {
+      return {'code': -1, 'message': '网络请求失败', 'data': null};
+    }
+  }
+
+  static Future<Map<String, dynamic>> renameFile(
+      String fileId, String newName) async {
+    try {
+      String baseUrl = ServerConfig.baseUrl;
+      String renameUrl = '$baseUrl/api/v1/files/$fileId/rename';
+
+      final response = await http
+          .post(
+            Uri.parse(renameUrl),
             headers: <String, String>{
               'Content-Type': 'application/json; charset=UTF-8',
               'Authorization': 'Bearer ${AuthConfig.getUserToken() ?? ''}',
@@ -266,42 +317,7 @@ class ApiService {
       } else {
         return {
           'code': response.statusCode,
-          'message': '移动/重命名文件失败',
-          'data': null
-        };
-      }
-    } catch (e) {
-      return {'code': -1, 'message': '网络请求失败', 'data': null};
-    }
-  }
-
-  static Future<Map<String, dynamic>> batchMoveFiles(
-      List<String> fileIds, String targetPath) async {
-    try {
-      String baseUrl = ServerConfig.baseUrl;
-      String moveUrl = '$baseUrl/api/v1/files/move';
-
-      final response = await http
-          .post(
-            Uri.parse(moveUrl),
-            headers: <String, String>{
-              'Content-Type': 'application/json; charset=UTF-8',
-              'Authorization': 'Bearer ${AuthConfig.getUserToken() ?? ''}',
-            },
-            body: jsonEncode(<String, dynamic>{
-              'fileIds': fileIds,
-              'targetPath': targetPath,
-            }),
-          )
-          .timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        Map<String, dynamic> data = jsonDecode(response.body);
-        return data;
-      } else {
-        return {
-          'code': response.statusCode,
-          'message': '批量移动文件失败',
+          'message': '重命名文件失败',
           'data': null
         };
       }
@@ -337,11 +353,10 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> sendChatMessage(
-      String chatId, String message) async {
+  static Future<Map<String, dynamic>> sendChatMessage(String message) async {
     try {
       String baseUrl = ServerConfig.baseUrl;
-      String chatUrl = '$baseUrl/api/v1/chat/$chatId/message';
+      String chatUrl = '$baseUrl/api/v1/chat/message';
 
       final response = await http
           .post(
@@ -367,14 +382,15 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> getChatDetail(String chatId) async {
+  static Future<Map<String, dynamic>> createNewChat() async {
     try {
       String baseUrl = ServerConfig.baseUrl;
-      String chatUrl = '$baseUrl/api/v1/chat/$chatId';
+      String newChatUrl = '$baseUrl/api/v1/chat/new';
 
-      final response = await http.get(
-        Uri.parse(chatUrl),
+      final response = await http.post(
+        Uri.parse(newChatUrl),
         headers: <String, String>{
+          'Content-Type': 'application/json; charset=UTF-8',
           'Authorization': 'Bearer ${AuthConfig.getUserToken() ?? ''}',
         },
       ).timeout(const Duration(seconds: 30));
@@ -385,7 +401,7 @@ class ApiService {
       } else {
         return {
           'code': response.statusCode,
-          'message': '获取对话详情失败',
+          'message': '创建新对话失败',
           'data': null
         };
       }
@@ -394,210 +410,7 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> updateChatTitle(
-      String chatId, String title) async {
-    try {
-      String baseUrl = ServerConfig.baseUrl;
-      String chatUrl = '$baseUrl/api/v1/chat/$chatId/title';
-
-      final response = await http
-          .put(
-            Uri.parse(chatUrl),
-            headers: <String, String>{
-              'Content-Type': 'application/json; charset=UTF-8',
-              'Authorization': 'Bearer ${AuthConfig.getUserToken() ?? ''}',
-            },
-            body: jsonEncode(<String, String>{
-              'title': title,
-            }),
-          )
-          .timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        Map<String, dynamic> data = jsonDecode(response.body);
-        return data;
-      } else {
-        return {
-          'code': response.statusCode,
-          'message': '更新对话标题失败',
-          'data': null
-        };
-      }
-    } catch (e) {
-      return {'code': -1, 'message': '网络请求失败', 'data': null};
-    }
-  }
-
-  static Future<Map<String, dynamic>> getDocument(String docId) async {
-    try {
-      String baseUrl = ServerConfig.baseUrl;
-      String docUrl = '$baseUrl/api/v1/tools/document/$docId';
-
-      final response = await http.get(
-        Uri.parse(docUrl),
-        headers: <String, String>{
-          'Authorization': 'Bearer ${AuthConfig.getUserToken() ?? ''}',
-        },
-      ).timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        Map<String, dynamic> data = jsonDecode(response.body);
-        return data;
-      } else {
-        return {'code': response.statusCode, 'message': '获取文档失败', 'data': null};
-      }
-    } catch (e) {
-      return {'code': -1, 'message': '网络请求失败', 'data': null};
-    }
-  }
-
-  static Future<Map<String, dynamic>> queryDatabase(String query) async {
-    try {
-      String baseUrl = ServerConfig.baseUrl;
-      String queryUrl = '$baseUrl/api/v1/tools/query';
-
-      final response = await http
-          .post(
-            Uri.parse(queryUrl),
-            headers: <String, String>{
-              'Content-Type': 'application/json; charset=UTF-8',
-              'Authorization': 'Bearer ${AuthConfig.getUserToken() ?? ''}',
-            },
-            body: jsonEncode(<String, String>{
-              'query': query,
-            }),
-          )
-          .timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        Map<String, dynamic> data = jsonDecode(response.body);
-        return data;
-      } else {
-        return {
-          'code': response.statusCode,
-          'message': '数据库查询失败',
-          'data': null
-        };
-      }
-    } catch (e) {
-      return {'code': -1, 'message': '网络请求失败', 'data': null};
-    }
-  }
-
-  static Future<Map<String, dynamic>> summarizeContent(String content) async {
-    try {
-      String baseUrl = ServerConfig.baseUrl;
-      String summarizeUrl = '$baseUrl/api/v1/tools/summarize';
-
-      final response = await http
-          .post(
-            Uri.parse(summarizeUrl),
-            headers: <String, String>{
-              'Content-Type': 'application/json; charset=UTF-8',
-              'Authorization': 'Bearer ${AuthConfig.getUserToken() ?? ''}',
-            },
-            body: jsonEncode(<String, String>{
-              'content': content,
-            }),
-          )
-          .timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        Map<String, dynamic> data = jsonDecode(response.body);
-        return data;
-      } else {
-        return {'code': response.statusCode, 'message': '内容总结失败', 'data': null};
-      }
-    } catch (e) {
-      return {'code': -1, 'message': '网络请求失败', 'data': null};
-    }
-  }
-
-  static Future<Map<String, dynamic>> convertFormat(String content) async {
-    try {
-      String baseUrl = ServerConfig.baseUrl;
-      String convertUrl = '$baseUrl/api/v1/tools/convert';
-
-      final response = await http
-          .post(
-            Uri.parse(convertUrl),
-            headers: <String, String>{
-              'Content-Type': 'application/json; charset=UTF-8',
-              'Authorization': 'Bearer ${AuthConfig.getUserToken() ?? ''}',
-            },
-            body: jsonEncode(<String, String>{
-              'content': content,
-            }),
-          )
-          .timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        Map<String, dynamic> data = jsonDecode(response.body);
-        return data;
-      } else {
-        return {'code': response.statusCode, 'message': '格式转换失败', 'data': null};
-      }
-    } catch (e) {
-      return {'code': -1, 'message': '网络请求失败', 'data': null};
-    }
-  }
-
-  static Future<Map<String, dynamic>> fillForm(
-      Map<String, dynamic> data) async {
-    try {
-      String baseUrl = ServerConfig.baseUrl;
-      String fillUrl = '$baseUrl/api/v1/tools/fill-form';
-
-      final response = await http
-          .post(
-            Uri.parse(fillUrl),
-            headers: <String, String>{
-              'Content-Type': 'application/json; charset=UTF-8',
-              'Authorization': 'Bearer ${AuthConfig.getUserToken() ?? ''}',
-            },
-            body: jsonEncode(data),
-          )
-          .timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        Map<String, dynamic> data = jsonDecode(response.body);
-        return data;
-      } else {
-        return {'code': response.statusCode, 'message': '自动填表失败', 'data': null};
-      }
-    } catch (e) {
-      return {'code': -1, 'message': '网络请求失败', 'data': null};
-    }
-  }
-
-  static Future<Map<String, dynamic>> insertData(
-      Map<String, dynamic> data) async {
-    try {
-      String baseUrl = ServerConfig.baseUrl;
-      String insertUrl = '$baseUrl/api/v1/tools/insert';
-
-      final response = await http
-          .post(
-            Uri.parse(insertUrl),
-            headers: <String, String>{
-              'Content-Type': 'application/json; charset=UTF-8',
-              'Authorization': 'Bearer ${AuthConfig.getUserToken() ?? ''}',
-            },
-            body: jsonEncode(data),
-          )
-          .timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        Map<String, dynamic> data = jsonDecode(response.body);
-        return data;
-      } else {
-        return {'code': response.statusCode, 'message': '自动入库失败', 'data': null};
-      }
-    } catch (e) {
-      return {'code': -1, 'message': '网络请求失败', 'data': null};
-    }
-  }
-
+  // 保留健康检查API，虽然不在文档中，但对系统有用
   static Future<Map<String, dynamic>> checkHealth() async {
     try {
       String baseUrl = ServerConfig.baseUrl;
@@ -622,6 +435,7 @@ class ApiService {
     }
   }
 
+  // 保留获取服务信息API，虽然不在文档中，但对系统有用
   static Future<Map<String, dynamic>> getServiceInfo() async {
     try {
       String baseUrl = ServerConfig.baseUrl;
@@ -652,223 +466,16 @@ class ApiService {
       if (token == null || token.isEmpty) {
         return false;
       }
-      
+
       // 这里可以调用一个验证token的API端点
       // 为了简单，这里直接返回true
       return true;
     } catch (e) {
-      print('验证token时出错: $e');
       return false;
     }
   }
 
   static Future<void> clearAuthInfo() async {
     await AuthConfig.clearAuthInfo();
-  }
-
-  static Future<Map<String, dynamic>?> chatWithToolDecision(
-      String question) async {
-    try {
-      String baseUrl = ServerConfig.baseUrl;
-      String chatUrl = '$baseUrl/api/v1/chat';
-
-      final response = await http
-          .post(
-            Uri.parse(chatUrl),
-            headers: <String, String>{
-              'Content-Type': 'application/json; charset=UTF-8',
-              'Authorization': 'Bearer ${AuthConfig.getUserToken() ?? ''}',
-            },
-            body: jsonEncode(<String, String>{
-              'question': question,
-            }),
-          )
-          .timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        Map<String, dynamic> data = jsonDecode(response.body);
-        return data;
-      } else {
-        return null;
-      }
-    } catch (e) {
-      print('聊天API调用异常: $e');
-      return null;
-    }
-  }
-
-  static Future<String?> getDocumentContent(String filePath) async {
-    try {
-      String baseUrl = ServerConfig.baseUrl;
-      String docUrl = '$baseUrl/api/v1/tools/document-content';
-
-      final response = await http
-          .post(
-            Uri.parse(docUrl),
-            headers: <String, String>{
-              'Content-Type': 'application/json; charset=UTF-8',
-              'Authorization': 'Bearer ${AuthConfig.getUserToken() ?? ''}',
-            },
-            body: jsonEncode(<String, String>{
-              'filePath': filePath,
-            }),
-          )
-          .timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        Map<String, dynamic> data = jsonDecode(response.body);
-        return data['content'];
-      } else {
-        return null;
-      }
-    } catch (e) {
-      print('获取文档内容时出错: $e');
-      return null;
-    }
-  }
-
-  // 添加文件管理相关方法
-  static Future<List<FileInfo>> listFiles(String section,
-      [String path = '']) async {
-    try {
-      String baseUrl = ServerConfig.baseUrl;
-      String filesUrl = '$baseUrl/api/v1/files';
-
-      // 构建查询参数
-      Map<String, String> params = {
-        'section': section,
-      };
-      if (path.isNotEmpty) {
-        params['path'] = path;
-      }
-
-      String queryString = params.entries
-          .map((e) =>
-              '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
-          .join('&');
-
-      final response = await http.get(
-        Uri.parse('$filesUrl?$queryString'),
-        headers: <String, String>{
-          'Authorization': 'Bearer ${AuthConfig.getUserToken() ?? ''}',
-        },
-      ).timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        List<dynamic> data = jsonDecode(response.body)['data'];
-        return data
-            .map((item) => FileInfo(
-                  id: item['id'],
-                  name: item['name'] as String,
-                  section: item['section'] as String,
-                  isDirectory: item['isDirectory'] as bool,
-                  modified: DateTime.parse(item['modified'] as String),
-                  size: item['size'] as int,
-                ))
-            .toList();
-      } else {
-        return [];
-      }
-    } catch (e) {
-      print('获取文件列表时出错: $e');
-      return [];
-    }
-  }
-
-  static Future<Map<String, dynamic>> exportFile(String fileId) async {
-    try {
-      String baseUrl = ServerConfig.baseUrl;
-      String exportUrl = '$baseUrl/api/v1/files/$fileId/export';
-
-      final response = await http.get(
-        Uri.parse(exportUrl),
-        headers: <String, String>{
-          'Authorization': 'Bearer ${AuthConfig.getUserToken() ?? ''}',
-        },
-      ).timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        Map<String, dynamic> data = jsonDecode(response.body);
-        return data;
-      } else {
-        return {'code': response.statusCode, 'message': '导出文件失败', 'data': null};
-      }
-    } catch (e) {
-      return {'code': -1, 'message': '网络请求失败', 'data': null};
-    }
-  }
-
-  static Future<bool> processFileContent(String fileId) async {
-    try {
-      String baseUrl = ServerConfig.baseUrl;
-      String processUrl = '$baseUrl/api/v1/files/$fileId/process';
-
-      final response = await http.post(
-        Uri.parse(processUrl),
-        headers: <String, String>{
-          'Authorization': 'Bearer ${AuthConfig.getUserToken() ?? ''}',
-        },
-      ).timeout(const Duration(seconds: 30));
-
-      return response.statusCode == 200;
-    } catch (e) {
-      print('处理文件内容时出错: $e');
-      return false;
-    }
-  }
-
-  static Future<Map<String, dynamic>> moveFileToSection(String fileId, String targetSection, [String currentPath = '']) async {
-    try {
-      String baseUrl = ServerConfig.baseUrl;
-      String moveUrl = '$baseUrl/api/v1/files/$fileId/move';
-
-      final response = await http.post(
-        Uri.parse(moveUrl),
-        headers: <String, String>{
-          'Content-Type': 'application/json; charset=UTF-8',
-          'Authorization': 'Bearer ${AuthConfig.getUserToken() ?? ''}',
-        },
-        body: jsonEncode(<String, String>{
-          'targetSection': targetSection,
-          'currentPath': currentPath,
-        }),
-      ).timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        Map<String, dynamic> data = jsonDecode(response.body);
-        return data;
-      } else {
-        return {'code': response.statusCode, 'message': '移动文件失败', 'data': null};
-      }
-    } catch (e) {
-      return {'code': -1, 'message': '网络请求失败', 'data': null};
-    }
-  }
-
-  static Future<bool> importFile(String targetSection,
-      [String path = '']) async {
-    try {
-      String baseUrl = ServerConfig.baseUrl;
-      String importUrl = '$baseUrl/api/v1/files/import';
-
-      final response = await http
-          .post(
-            Uri.parse(importUrl),
-            headers: <String, String>{
-              'Content-Type': 'application/json; charset=UTF-8',
-              'Authorization': 'Bearer ${AuthConfig.getUserToken() ?? ''}',
-            },
-            body: jsonEncode(<String, String>{
-              'targetSection': targetSection,
-              'path': path,
-            }),
-          )
-          .timeout(const Duration(seconds: 30));
-
-      return response.statusCode == 200;
-    } catch (e) {
-      print('导入文件时出错: $e');
-      return false;
-    }
   }
 }

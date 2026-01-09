@@ -14,4 +14,15 @@ class FileInfo {
     required this.modified,
     required this.size,
   });
+
+  factory FileInfo.fromJson(Map<String, dynamic> json) {
+    return FileInfo(
+      id: json['id'],
+      name: json['name'],
+      section: json['section'],
+      isDirectory: json['isDirectory'] ?? false,
+      modified: DateTime.parse(json['modified']),
+      size: json['size']?.toInt() ?? 0,
+    );
+  }
 }
