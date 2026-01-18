@@ -16,12 +16,12 @@ public class HealthController {
         Map<String, Object> result = new HashMap<>();
         result.put("status", "UP");
         result.put("timestamp", System.currentTimeMillis());
-        
-        // 添加详细信息
+
+        // 详细信息
         Map<String, Object> details = new HashMap<>();
         details.put("database", "UP");
         details.put("mongodb", "UP");
-        
+
         result.put("details", details);
         return result;
     }

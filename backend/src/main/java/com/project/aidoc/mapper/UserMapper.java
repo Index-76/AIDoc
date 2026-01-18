@@ -14,12 +14,12 @@ public interface UserMapper {
     /**
      * 根据用户名查找用户
      */
-    User findByUsername(@Param("username") String username);
+    User selectByUsername(@Param("username") String username);
     
     /**
      * 根据邮箱查找用户
      */
-    User findByEmail(@Param("email") String email);
+    User selectByEmail(@Param("email") String email);
     
     /**
      * 插入新用户
@@ -29,7 +29,7 @@ public interface UserMapper {
     /**
      * 根据ID更新用户
      */
-    void updateById(User user);
+    void update(User user);
     
     /**
      * 根据用户名更新密码
@@ -39,5 +39,10 @@ public interface UserMapper {
     /**
      * 根据ID删除用户
      */
-    int deleteById(@Param("userid") Long userid);
+    int delete(@Param("userid") Long userid);
+    
+    /**
+     * 查询所有用户
+     */
+    java.util.List<User> selectAll();
 }

@@ -7,8 +7,8 @@ public class LoginRequest {
     private String username;
     private String password;
     private Boolean rememberMe;
-    
-    // 显式添加getter和setter方法
+
+    // 显式getter和setter方法
     public String getUsername() {
         return username;
     }

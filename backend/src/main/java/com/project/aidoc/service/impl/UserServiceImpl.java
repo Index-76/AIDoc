@@ -3,9 +3,12 @@ package com.project.aidoc.service.impl;
 import com.project.aidoc.entity.User;
 import com.project.aidoc.mapper.UserMapper;
 import com.project.aidoc.service.UserService;
+import com.project.aidoc.service.UserConfigService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+
+import java.util.List;
 
 @Service
 public class UserServiceImpl implements UserService {
@@ -13,42 +16,70 @@ public class UserServiceImpl implements UserService {
     @Autowired
     private UserMapper userMapper;
 
+    @Autowired
+    private UserConfigService userConfigService;
+
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Override
-    public User findById(Long id) {
+    public List<User> getAllUsers() {
+        return userMapper.selectAll();
+    }
+
+    @Override
+    public User getUserById(Long id) {
         return userMapper.selectById(id);
     }
 
     @Override
-    public User findByUsername(String username) {
-        return userMapper.findByUsername(username);
-    }
-
-    @Override
-    public User findByEmail(String email) {
-        return userMapper.findByEmail(email);
-    }
-
-    @Override
     public User createUser(User user) {
-        // 使用BCryptPasswordEncoder加密密码
+        // 检查用户名或邮箱是否已存在
+        if (getUserByUsername(user.getUsername()) != null || getUserByEmail(user.getEmail()) != null) {
+            throw new RuntimeException("用户名或邮箱已存在");
+        }
+        
+        // 加密密码
         String encodedPassword = passwordEncoder.encode(user.getPassword());
         user.setPassword(encodedPassword);
+        
         userMapper.insert(user);
+        
+        // 初始化用户配置
+        initializeUserConfig(user.getUserid());
+        
         return user;
     }
 
     @Override
-    public boolean updatePassword(String username, String newPassword) {
-        String encodedPassword = passwordEncoder.encode(newPassword);
-        int result = userMapper.updatePasswordByUsername(username, encodedPassword);
-        return result > 0;
+    public User updateUser(User user) {
+        userMapper.update(user);
+        return user;
+    }
+
+    @Override
+    public void deleteUser(Long id) {
+        userMapper.delete(id);
+    }
+
+    @Override
+    public User getUserByUsername(String username) {
+        return userMapper.selectByUsername(username);
+    }
+
+    @Override
+    public User getUserByEmail(String email) {
+        return userMapper.selectByEmail(email);
+    }
+
+    @Override
+    public void initializeUserConfig(Long userId) {
+        // 创建默认用户配置
+        userConfigService.createDefaultUserConfig(userId);
     }
 
     @Override
     public boolean verifyPassword(String username, String password) {
-        User user = userMapper.findByUsername(username);
+        User user = userMapper.selectByUsername(username);
         if (user == null) {
             return false;
         }

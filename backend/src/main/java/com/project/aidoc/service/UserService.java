@@ -1,35 +1,20 @@
 package com.project.aidoc.service;
 
 import com.project.aidoc.entity.User;
+import java.util.List;
 
 public interface UserService {
-    /**
-     * 根据用户ID查找用户
-     */
-    User findById(Long id);
-
-    /**
-     * 根据用户名查找用户
-     */
-    User findByUsername(String username);
-
-    /**
-     * 根据邮箱查找用户
-     */
-    User findByEmail(String email);
-
-    /**
-     * 创建新用户
-     */
+    List<User> getAllUsers();
+    User getUserById(Long id);
     User createUser(User user);
-
-    /**
-     * 更新用户密码
-     */
-    boolean updatePassword(String username, String newPassword);
-
-    /**
-     * 验证用户密码
-     */
+    User updateUser(User user);
+    void deleteUser(Long id);
+    User getUserByUsername(String username);
+    User getUserByEmail(String email);
+    
+    // 在创建用户时初始化配置
+    void initializeUserConfig(Long userId);
+    
+    // 验证用户密码
     boolean verifyPassword(String username, String password);
 }

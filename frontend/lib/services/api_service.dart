@@ -14,7 +14,7 @@ class _VirtualFileForWeb {
   _VirtualFileForWeb(this.bytes, this.name);
 
   Uint8List readAsBytesSync() => bytes;
-  
+
   String get path => name;
 }
 
@@ -187,14 +187,13 @@ class ApiService {
         // Web环境文件处理
         var multipartFile = http.MultipartFile.fromBytes(
           'file',
-          file.readAsBytesSync(), // 需要添加这个方法
+          file.readAsBytesSync(),
           filename: fileName,
           contentType: MediaType('application', 'octet-stream'),
         );
         request.files.add(multipartFile);
       }
 
-      // 添加section参数
       if (section.isNotEmpty) {
         request.fields['section'] = section;
       }

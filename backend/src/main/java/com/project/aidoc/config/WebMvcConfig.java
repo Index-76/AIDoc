@@ -29,9 +29,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
     public void addViewControllers(ViewControllerRegistry registry) {
         // 将根路径映射到index.html
         registry.addViewController("/").setViewName("forward:/index.html");
-        
-        // 为Flutter路由处理添加其他常见路径
-        // 但排除API路径和静态资源路径
+
+        // Flutter路由处理的其他常见路径
+        // 排除API路径和静态资源路径
         registry.addViewController("/app").setViewName("forward:/index.html");
         registry.addViewController("/dashboard").setViewName("forward:/index.html");
         registry.addViewController("/settings").setViewName("forward:/index.html");

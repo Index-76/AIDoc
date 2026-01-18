@@ -3,7 +3,6 @@
 此目录用于存放项目所需的字体文件。目前项目配置了以下字体：
 
 - `Equilium.ttf` - 等线字体
-- `DroidSansFallback.ttf` - Droid Sans Fallback 字体
 
 ## 如何添加字体文件
 

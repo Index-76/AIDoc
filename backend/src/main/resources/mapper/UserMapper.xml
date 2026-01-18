@@ -23,14 +23,14 @@
         WHERE userid = #{userid}
     </select>
 
-    <select id="findByUsername" parameterType="java.lang.String" resultMap="BaseResultMap">
+    <select id="selectByUsername" parameterType="java.lang.String" resultMap="BaseResultMap">
         SELECT
         <include refid="Base_Column_List"/>
         FROM users
         WHERE username = #{username} AND status = 1
     </select>
 
-    <select id="findByEmail" parameterType="java.lang.String" resultMap="BaseResultMap">
+    <select id="selectByEmail" parameterType="java.lang.String" resultMap="BaseResultMap">
         SELECT
         <include refid="Base_Column_List"/>
         FROM users
@@ -57,7 +57,7 @@
         </trim>
     </insert>
 
-    <update id="updateById" parameterType="com.project.aidoc.entity.User">
+    <update id="update" parameterType="com.project.aidoc.entity.User">
         UPDATE users
         <set>
             <if test="username != null">username = #{username},</if>
@@ -75,9 +75,15 @@
         WHERE username = #{username}
     </update>
 
-    <delete id="deleteById" parameterType="java.lang.Long">
+    <delete id="delete" parameterType="java.lang.Long">
         DELETE FROM users
         WHERE userid = #{userid}
     </delete>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM users
+    </select>
 
 </mapper>

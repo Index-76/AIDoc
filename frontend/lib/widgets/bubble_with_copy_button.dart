@@ -42,14 +42,18 @@ class _BubbleWithCopyButtonState extends State<BubbleWithCopyButton> {
                       data: widget.message.text,
                       styleSheet: MarkdownStyleSheet(
                         p: TextStyle(
-                          fontSize: MediaQuery.of(context).size.width > 768 ? 16.0 : 14.0,
+                          fontSize: MediaQuery.of(context).size.width > 768
+                              ? 16.0
+                              : 14.0,
                           fontWeight: FontWeight.normal,
                           // 减少字符间距，改善视觉效果
                           letterSpacing: 0.5,
                         ),
                         code: TextStyle(
                           fontFamily: 'Courier New',
-                          fontSize: MediaQuery.of(context).size.width > 768 ? 14.0 : 12.0,
+                          fontSize: MediaQuery.of(context).size.width > 768
+                              ? 14.0
+                              : 12.0,
                           color: Colors.black,
                         ),
                         codeblockPadding: const EdgeInsets.all(8.0),
@@ -57,21 +61,21 @@ class _BubbleWithCopyButtonState extends State<BubbleWithCopyButton> {
                           color: const Color(0xFFCCCCCC),
                           borderRadius: BorderRadius.circular(4.0),
                         ),
-                        // 添加链接样式
+                        // 链接样式
                         a: const TextStyle(
                           color: Colors.blue,
                           decoration: TextDecoration.underline,
                         ),
                       ),
-                      // 添加自定义构建器以改善代码块选中效果
+                      // 自定义构建器以改善代码块选中效果
                       builders: {'code': CodeElementBuilder()},
-                      // 添加链接点击处理
-                      onTapLink: (String url, String? title, String? text) async {
+                      // 链接点击处理
+                      onTapLink:
+                          (String url, String? title, String? text) async {
                         // 检查url是否是有效的URL，如果不是，尝试使用title
                         String actualUrl = url;
                         // 检查url是否包含有效的协议
-                        bool isUrlValid =
-                            url.startsWith('http://') ||
+                        bool isUrlValid = url.startsWith('http://') ||
                             url.startsWith('https://');
 
                         // 如果url不是有效的URL，但title是有效的URL，则使用title
@@ -124,7 +128,7 @@ class _BubbleWithCopyButtonState extends State<BubbleWithCopyButton> {
                             }
                           }
                         } catch (e) {
-                          // 忽略添加协议后解析错误
+                          // 忽略解析错误
                         }
                       },
                     ),
@@ -133,7 +137,7 @@ class _BubbleWithCopyButtonState extends State<BubbleWithCopyButton> {
               ),
               // 右侧扩展区域，增加鼠标检测范围
               Container(
-                width: 40, // 增加到40像素以提高可检测性
+                width: 40,
                 height: 60,
                 color: Colors.transparent, // 透明区域用于扩大检测范围
               ),
@@ -148,9 +152,8 @@ class _BubbleWithCopyButtonState extends State<BubbleWithCopyButton> {
             onEnter: (_) => setState(() => _isButtonHovered = true),
             onExit: (_) => setState(() => _isButtonHovered = false),
             child: AnimatedOpacity(
-              opacity: _isHovering || _isButtonHovered
-                  ? 1.0
-                  : 0.0, // 任一悬停条件满足时显示
+              opacity:
+                  _isHovering || _isButtonHovered ? 1.0 : 0.0, // 任一悬停条件满足时显示
               duration: const Duration(milliseconds: 150),
               child: CopyButton(message: widget.message),
             ),
@@ -161,15 +164,15 @@ class _BubbleWithCopyButtonState extends State<BubbleWithCopyButton> {
   }
 }
 
-// 自定义代码元素构建器，添加选中高亮效果
+// 自定义代码元素构建器，包含选中高亮效果
 class CodeElementBuilder extends MarkdownElementBuilder {
   @override
   Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
     return Container(
       padding: const EdgeInsets.all(2),
       decoration: const BoxDecoration(
-        // 移除背景色，让选中高亮可见
-      ),
+          // 移除背景色，让选中高亮可见
+          ),
       child: Text(
         element.textContent,
         style: TextStyle(

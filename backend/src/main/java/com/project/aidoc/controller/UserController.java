@@ -19,9 +19,6 @@ public class UserController {
 
     @Autowired
     private UserService userService;
-    
-    @Autowired
-    private UserMapper userMapper;
 
     /**
      * 根据ID获取用户，仅允许用户访问自己的信息
@@ -41,7 +38,7 @@ public class UserController {
             return Result.error(403, "无权访问其他用户信息");
         }
         
-        User user = userMapper.selectById(id);
+        User user = userService.getUserById(id);
         if (user != null) {
             return Result.success(user);
         }
@@ -81,7 +78,7 @@ public class UserController {
         
         user.setUserid(id);
         try {
-            userMapper.updateById(user);
+            userService.updateUser(user);
             return Result.success("用户更新成功");
         } catch (Exception e) {
             return Result.error(500, "更新用户失败: " + e.getMessage());
@@ -106,11 +103,12 @@ public class UserController {
             return Result.error(403, "无权删除其他用户信息");
         }
         
-        int result = userMapper.deleteById(id);
-        if (result > 0) {
+        try {
+            userService.deleteUser(id);
             return Result.success("用户删除成功");
+        } catch (Exception e) {
+            return Result.error(500, "删除用户失败: " + e.getMessage());
         }
-        return Result.error(500, "删除用户失败");
     }
 
     /**
@@ -121,7 +119,7 @@ public class UserController {
         if (cn.dev33.satoken.stp.StpUtil.isLogin()) {
             try {
                 Long userId = Long.parseLong(cn.dev33.satoken.stp.StpUtil.getLoginIdAsString());
-                User user = userMapper.selectById(userId);
+                User user = userService.getUserById(userId);
                 if (user != null) {
                     return Result.success(user);
                 }

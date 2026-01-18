@@ -22,7 +22,7 @@ public class User {
         this.password = password;
     }
 
-    // 显式添加getter和setter方法
+    // 显式getter和setter方法
     public Long getUserid() {
         return userid;
     }

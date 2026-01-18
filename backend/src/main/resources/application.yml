@@ -8,6 +8,11 @@ spring:
     active: dev # 默认激活开发环境配置
   application:
     name: aidoc
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 50MB
+      enabled: true
 
 # Sa-Token配置
 sa-token:
@@ -59,7 +64,7 @@ spring:
     time-zone: GMT+8
   data:
     mongodb:
-      uri: mongodb://${dev_user:dev_user}:${dev_password:dev_password}@localhost:27017/aidoc_dev?authSource=admin
+      uri: mongodb://localhost:27017/aidoc_dev
   datasource:
     url: jdbc:mysql://localhost:3306/aidoc_dev?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true
     username: root
