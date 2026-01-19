@@ -7,6 +7,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @RestController
@@ -16,26 +17,48 @@ public class ChatController {
     @Autowired
     private ChatService chatService;
 
-    @GetMapping("/history")
-    public Result<List<ChatMessage>> getChatHistory() {
+    @GetMapping("/sessions")
+    public Result<Set<String>> getSessionList() {
         if (!StpUtil.isLogin()) {
             return Result.error(401, "用户未登录");
         }
 
         Long userId = Long.parseLong(StpUtil.getLoginIdAsString());
-        List<ChatMessage> history = chatService.getChatHistoryByUserId(userId);
-        return Result.success(history);
+        Set<String> sessionIds = chatService.getAllSessionIdsByUserId(userId);
+        return Result.success(sessionIds);
     }
 
-    @GetMapping("/history/session/{sessionId}")
+    @GetMapping("/session/{sessionId}/history")
     public Result<List<ChatMessage>> getChatHistoryBySession(@PathVariable("sessionId") String sessionId) {
         if (!StpUtil.isLogin()) {
             return Result.error(401, "用户未登录");
         }
 
         Long userId = Long.parseLong(StpUtil.getLoginIdAsString());
+
+        // 检查会话是否存在
         List<ChatMessage> history = chatService.getChatHistoryByUserIdAndSession(userId, sessionId);
+        if (history.isEmpty()) {
+            return Result.error(400, "会话不存在: " + sessionId);
+        }
+
         return Result.success(history);
+    }
+
+    @DeleteMapping("/session/{sessionId}/delete")
+    public Result<String> deleteSession(@PathVariable("sessionId") String sessionId) {
+        if (!StpUtil.isLogin()) {
+            return Result.error(401, "用户未登录");
+        }
+
+        Long userId = Long.parseLong(StpUtil.getLoginIdAsString());
+
+        try {
+            chatService.deleteSessionBySessionId(userId, sessionId);
+            return Result.success("会话删除成功");
+        } catch (IllegalArgumentException e) {
+            return Result.error(400, e.getMessage());
+        }
     }
 
     @PostMapping("/message")

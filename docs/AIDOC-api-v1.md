@@ -1,5 +1,5 @@
 ---
-title: 默认模块
+title: AIDOC-api-v1
 language_tabs:
   - shell: Shell
   - http: HTTP
@@ -19,7 +19,7 @@ generator: "@tarslib/widdershins v4.0.30"
 
 ---
 
-# 默认模块
+# AIDOC-api-v1
 
 Base URLs:
 
@@ -428,26 +428,6 @@ POST /api/v1/files/{fileId}/rename
 
 # AI对话
 
-## GET 获取全部历史
-
-GET /api/v1/chat/history
-
-> 返回示例
-
-> 200 Response
-
-```json
-{}
-```
-
-### 返回结果
-
-|状态码|状态码含义|说明|数据模型|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
-
-### 返回数据结构
-
 ## POST 发送消息
 
 POST /api/v1/chat/message
@@ -503,9 +483,55 @@ POST /api/v1/chat/new
 
 ### 返回数据结构
 
+## GET 获取对话列表
+
+GET /api/v1/chat/sessions
+
+> 返回示例
+
+> 200 Response
+
+```json
+{}
+```
+
+### 返回结果
+
+|状态码|状态码含义|说明|数据模型|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+
+### 返回数据结构
+
 ## GET 获取对话历史
 
-GET /api/v1/chat/history/session/{sessionId}
+GET /api/v1/chat/session/{sessionId}/history
+
+### 请求参数
+
+|名称|位置|类型|必选|说明|
+|---|---|---|---|---|
+|sessionId|path|string| 是 |none|
+
+> 返回示例
+
+> 200 Response
+
+```json
+{}
+```
+
+### 返回结果
+
+|状态码|状态码含义|说明|数据模型|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+
+### 返回数据结构
+
+## DELETE 删除对话
+
+DELETE /api/v1/chat/session/{sessionId}/delete
 
 ### 请求参数
 

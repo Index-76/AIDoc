@@ -63,6 +63,13 @@ public class FileServiceImpl implements FileService {
 
     @Override
     public void deleteFileById(String fileId, Long userId) {
+        // 检查文件是否存在
+        Optional<File> fileOpt = fileRepository.findById(fileId);
+        if (!fileOpt.isPresent() || !fileOpt.get().getUserId().equals(userId)) {
+            throw new IllegalArgumentException("文件不存在: " + fileId);
+        }
+        
+        // 文件存在，执行删除操作
         // 从GridFS删除文件
         gridFsTemplate.delete(new Query(Criteria.where("_id").is(fileId)));
         

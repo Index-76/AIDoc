@@ -114,8 +114,13 @@ public class FileController {
         }
 
         Long userId = Long.parseLong(StpUtil.getLoginIdAsString());
-        fileService.deleteFileById(fileId, userId);
-        return Result.success("文件删除成功");
+        
+        try {
+            fileService.deleteFileById(fileId, userId);
+            return Result.success("文件删除成功");
+        } catch (IllegalArgumentException e) {
+            return Result.error(400, e.getMessage());
+        }
     }
 
     @PostMapping("/{fileId}/move")

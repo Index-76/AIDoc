@@ -6,6 +6,12 @@ import com.project.aidoc.repository.ChatMessageRepository;
 import com.project.aidoc.service.ChatService;
 import com.project.aidoc.service.UserConfigService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.GroupOperation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
+import org.springframework.data.mongodb.core.aggregation.MatchOperation;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -19,7 +25,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class ChatServiceImpl implements ChatService {
@@ -29,6 +38,9 @@ public class ChatServiceImpl implements ChatService {
 
     @Autowired
     private UserConfigService userConfigService;
+
+    @Autowired
+    private MongoTemplate mongoTemplate;
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -75,6 +87,33 @@ public class ChatServiceImpl implements ChatService {
         saveMessage(userId, sessionId, aiResponse, "AI");
 
         return aiResponse;
+    }
+
+    @Override
+    public Set<String> getAllSessionIdsByUserId(Long userId) {
+        // 从数据库中获取用户的所有聊天消息
+        List<ChatMessage> allMessages = chatMessageRepository.findByUserIdOrderByTimestampAsc(userId);
+        
+        // 提取唯一的会话ID
+        Set<String> sessionIds = allMessages.stream()
+                .map(ChatMessage::getSessionId)
+                .filter(sessionId -> sessionId != null && !sessionId.isEmpty())
+                .collect(Collectors.toSet());
+                
+        return sessionIds;
+    }
+
+    @Override
+    public void deleteSessionBySessionId(Long userId, String sessionId) {
+        // 检查会话是否存在
+        List<ChatMessage> sessionMessages = chatMessageRepository.findByUserIdAndSessionIdOrderByTimestampAsc(userId, sessionId);
+        
+        if (sessionMessages.isEmpty()) {
+            throw new IllegalArgumentException("会话不存在: " + sessionId);
+        }
+        
+        // 会话存在，执行删除操作
+        chatMessageRepository.deleteByUserIdAndSessionId(userId, sessionId);
     }
 
     private String callAIService(Long userId, String message) {

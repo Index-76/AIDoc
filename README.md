@@ -114,7 +114,7 @@ flutter run
 
 ## API 文档
 
-后端 API 文档请参考 `docs/api.md`
+后端 API 文档请参考 `docs/AIDOC-api-v1.md`
 
 ## SQL 文档
 
