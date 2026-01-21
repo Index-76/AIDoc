@@ -73,8 +73,12 @@ class _TooltipOverlayState extends State<TooltipOverlay>
       // 2秒后自动移除提示
       Future.delayed(const Duration(seconds: 2), () {
         if (_instance != null && _instance!.mounted) {
+          // 查找并移除特定的消息
           _instance!.setState(() {
-            _tooltips.removeWhere((tooltip) => tooltip.message == message);
+            _tooltips.removeWhere((tooltip) => 
+              tooltip.message == message && 
+              tooltip.timestamp.isAfter(DateTime.now().subtract(const Duration(milliseconds: 50))) // 防止移除其他相同消息
+            );
           });
         }
       });

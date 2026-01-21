@@ -1,16 +1,22 @@
+enum ChatSender {
+  user,
+  ai,
+}
+
 class ChatMessage {
   final String text;
-  final bool isUser;
+  final ChatSender sender;
   final bool isToolCall;
 
-  ChatMessage(
-      {required this.text, required this.isUser, this.isToolCall = false});
+  ChatMessage(this.text, this.sender, {this.isToolCall = false});
 
   factory ChatMessage.user(String text) {
-    return ChatMessage(text: text, isUser: true);
+    return ChatMessage(text, ChatSender.user);
   }
 
   factory ChatMessage.ai(String text) {
-    return ChatMessage(text: text, isUser: false);
+    return ChatMessage(text, ChatSender.ai);
   }
+
+  bool get isUser => sender == ChatSender.user;
 }

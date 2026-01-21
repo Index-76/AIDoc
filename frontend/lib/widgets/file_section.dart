@@ -2,10 +2,6 @@ import 'package:flutter/material.dart';
 import '../models/file_info.dart';
 import 'tips.dart';
 import '../services/api_service.dart';
-import '../config/auth_config.dart';
-import '../config/server_config.dart';
-import 'dart:convert';
-import 'dart:typed_data';
 import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:universal_io/io.dart' as universal_io;
@@ -24,6 +20,7 @@ class FileSectionState extends State<FileSection> {
   late Future<Map<String, dynamic>> _filesFuture;
   // 防止重复操作的标志位
   bool _isProcessing = false;
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -32,9 +29,32 @@ class FileSectionState extends State<FileSection> {
   }
 
   void _refreshFiles() {
-    setState(() {
-      _filesFuture = ApiService.getFiles();
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _filesFuture = ApiService.getFiles();
+        // 监听Future完成，更新加载状态
+        _filesFuture.then((_) {
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+          }
+        }).catchError((error) {
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+          }
+        });
+      });
+    }
+  }
+
+  // 新增_loadFiles方法，用于重新加载文件列表
+  void _loadFiles() {
+    // 使用_getFiles获取文件列表
+    _refreshFiles();
   }
 
   // 导出文件功能
@@ -42,51 +62,64 @@ class FileSectionState extends State<FileSection> {
     // 防止在处理中时导出
     if (_isProcessing) return;
 
-    final result = await _filesFuture;
-    bool hasFiles =
-        result['code'] == 200 && (result['data'] as List).isNotEmpty;
+    try {
+      final result = await _filesFuture;
+      bool hasFiles =
+          result['code'] == 200 && (result['data'] as List).isNotEmpty;
 
-    if (!hasFiles) {
-      return;
-    }
+      if (!hasFiles) {
+        return;
+      }
 
-    final filesData = result['data'] as List;
-    final files = filesData.map((item) => FileInfo.fromJson(item)).toList();
+      final filesData = result['data'] as List;
+      final files = filesData.map((item) => FileInfo.fromJson(item)).toList();
 
-    if (files.length == 1) {
-      setState(() {
-        _isProcessing = true;
-      });
+      if (files.length == 1) {
+        if (mounted) {
+          setState(() {
+            _isProcessing = true;
+          });
+        }
 
-      // 如果只有一个文件，直接下载
-      _downloadFile(files.first);
-    } else {
-      // 如果有多个文件，让用户选择要导出的文件
-      _selectFilesToExport(files);
+        // 如果只有一个文件，直接下载
+        _downloadFile(files.first);
+      } else {
+        // 如果有多个文件，让用户选择要导出的文件
+        _selectFilesToExport(files);
+      }
+    } catch (e) {
+      if (mounted) {
+        TooltipUtil.showTooltip(
+          '导出文件失败: $e',
+          TooltipPosition.fileAreaCenter,
+        );
+      }
     }
   }
 
   // 下载单个文件
   void _downloadFile(FileInfo file) async {
-    final result = await ApiService.downloadFile(file.id);
-    bool success = result['code'] == 200;
+    try {
+      final result = await ApiService.downloadFile(file.id);
+      bool success = result['code'] == 200;
 
-    if (success && mounted) {
-      TooltipUtil.showTooltip(
-        '文件下载成功',
-        TooltipPosition.fileAreaCenter,
-      );
-    } else if (mounted) {
-      TooltipUtil.showTooltip(
-        '文件下载失败',
-        TooltipPosition.fileAreaCenter,
-      );
-    }
-
-    if (mounted) {
-      setState(() {
-        _isProcessing = false;
-      });
+      if (success && mounted) {
+        TooltipUtil.showTooltip(
+          '文件下载成功',
+          TooltipPosition.fileAreaCenter,
+        );
+      } else if (mounted) {
+        TooltipUtil.showTooltip(
+          '文件下载失败',
+          TooltipPosition.fileAreaCenter,
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
     }
   }
 
@@ -112,11 +145,6 @@ class FileSectionState extends State<FileSection> {
                     itemCount: files.length,
                     itemBuilder: (context, index) {
                       final file = files[index];
-                      // 检查是否是结果区，如果是则跳过（结果区文件只读）
-                      if (file.section == 'result') {
-                        return Container(); // 不显示结果区的文件
-                      }
-
                       return CheckboxListTile(
                         value: selectedFiles.contains(file),
                         onChanged: (bool? value) {
@@ -128,7 +156,7 @@ class FileSectionState extends State<FileSection> {
                             }
                           });
                         },
-                        title: Text(file.name),
+                        title: Text(file.fileName), // 使用fileName替代name
                         secondary: Icon(
                           Icons.description,
                         ),
@@ -188,7 +216,12 @@ class FileSectionState extends State<FileSection> {
 
   // 公共方法，允许外部触发刷新
   void refreshFiles() {
-    _refreshFiles();
+    // 使用定时器确保在下一帧执行刷新，避免状态冲突
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadFiles();
+      }
+    });
   }
 
   @override
@@ -226,13 +259,15 @@ class FileSectionState extends State<FileSection> {
                 const Spacer(),
                 IconButton(
                   icon: Icon(
-                    widget.title == '结果'
+                    widget.title == 'result'
                         ? Icons.download_for_offline_outlined
                         : Icons.upload_file,
                     size: MediaQuery.of(context).size.width > 768 ? 20 : 18,
                   ),
                   onPressed: () async {
-                    if (widget.title == '结果') {
+                    if (_isProcessing || _isLoading) return; // 防止在处理中或加载中时重复操作
+
+                    if (widget.title == 'result') {
                       // 导出文件功能
                       _exportFiles();
                     } else {
@@ -255,7 +290,8 @@ class FileSectionState extends State<FileSection> {
               child: FutureBuilder<Map<String, dynamic>>(
                 future: _filesFuture,
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
+                  if (_isLoading ||
+                      snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
 
@@ -264,10 +300,31 @@ class FileSectionState extends State<FileSection> {
                   }
 
                   if (snapshot.hasData && snapshot.data!['code'] == 200) {
-                    final filesData = snapshot.data!['data'] as List;
-                    final files = filesData
-                        .map((item) => FileInfo.fromJson(item))
-                        .toList();
+                    final dynamic data = snapshot.data!['data'];
+                    if (data is! List) {
+                      return const Center(
+                        child: Text(
+                          '获取文件列表失败',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      );
+                    }
+
+                    List<FileInfo> files = [];
+                    try {
+                      final filesData = data as List;
+                      files = filesData
+                          .map((item) =>
+                              FileInfo.fromJson(item as Map<String, dynamic>))
+                          .toList();
+                    } catch (e) {
+                      return Center(
+                        child: Text(
+                          '文件数据解析失败: $e',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      );
+                    }
 
                     if (files.isEmpty) {
                       return const Center(
@@ -278,73 +335,98 @@ class FileSectionState extends State<FileSection> {
                       );
                     }
 
-                    return ListView.builder(
-                      itemCount: files.length,
-                      itemBuilder: (context, index) {
-                        final file = files[index];
+                    // 过滤文件以确保只显示当前区域的文件
+                    final filteredFiles = files.where((file) {
+                      String sectionCode =
+                          _getSectionCodeFromTitle(widget.title);
+                      return file.section == sectionCode;
+                    }).toList();
 
-                        // 如果文件在结果区，根据规范不显示或限制操作
-                        if (widget.title == '结果' && file.section != 'result') {
-                          return Container(); // 只在结果区显示结果文件
-                        }
-
-                        return _FileItem(
-                          file: file,
-                          currentSection: widget.title,
-                          onDoubleTap: () async {
-                            // 暂时不做任何操作
-                          },
-                          onDelete: () {
-                            // 如果当前区域是结果区，则不允许删除
-                            if (widget.title == '结果') {
-                              if (mounted) {
-                                TooltipUtil.showTooltip(
-                                  '结果区文件不允许删除',
-                                  TooltipPosition.fileAreaCenter,
-                                );
-                              }
-                              return;
-                            }
-                            _confirmDelete(context, file);
-                          },
-                          onRefresh: _refreshFiles,
-                          onMoveToSection: (targetSection) async {
-                            // 如果当前区域是结果区，则不允许移动
-                            if (widget.title == '结果') {
-                              if (mounted) {
-                                TooltipUtil.showTooltip(
-                                  '结果区文件不允许移动',
-                                  TooltipPosition.fileAreaCenter,
-                                );
-                              }
-                              return;
-                            }
-
-                            // 调用API移动文件到目标区域
-                            if (mounted) {
-                              final result = await ApiService.moveFile(
-                                  file.id, targetSection);
-                              bool success = result['code'] == 200;
-
-                              if (success) {
-                                TooltipUtil.showTooltip(
-                                  '移动成功',
-                                  TooltipPosition.fileAreaCenter,
-                                );
-                                _refreshFiles();
-
-                                // 刷新所有区域
-                                widget.onFilesChanged?.call();
-                              } else {
-                                TooltipUtil.showTooltip(
-                                  '移动失败',
-                                  TooltipPosition.fileAreaCenter,
-                                );
-                              }
-                            }
-                          },
-                        );
+                    return RefreshIndicator(
+                      onRefresh: () async {
+                        _refreshFiles();
+                        // 等待刷新完成
+                        await Future.delayed(const Duration(milliseconds: 500));
                       },
+                      child: filteredFiles.isEmpty
+                          ? const Center(
+                              child: Text(
+                                '暂无文件',
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: filteredFiles.length,
+                              itemBuilder: (context, index) {
+                                // 检查索引是否有效
+                                if (index < 0 ||
+                                    index >= filteredFiles.length) {
+                                  return Container(); // 返回空容器，防止越界
+                                }
+
+                                final file = filteredFiles[index];
+
+                                // 确保组件仍然挂载后再构建UI
+                                if (!mounted) return Container();
+
+                                return _FileItem(
+                                  file: file,
+                                  currentSection: widget.title,
+                                  onDoubleTap: () async {
+                                    // 暂时不做任何操作
+                                  },
+                                  onDelete: () {
+                                    // 如果当前区域是结果区，则不允许删除
+                                    if (widget.title == 'result') {
+                                      if (mounted) {
+                                        TooltipUtil.showTooltip(
+                                          '结果区文件不允许删除',
+                                          TooltipPosition.fileAreaCenter,
+                                        );
+                                      }
+                                      return;
+                                    }
+                                    _confirmDelete(context, file);
+                                  },
+                                  onRefresh: _refreshFiles,
+                                  onMoveToSection: (targetSection) async {
+                                    // 如果当前区域是结果区，则不允许移动
+                                    if (widget.title == 'result') {
+                                      if (mounted) {
+                                        TooltipUtil.showTooltip(
+                                          '结果区文件不允许移动',
+                                          TooltipPosition.fileAreaCenter,
+                                        );
+                                      }
+                                      return;
+                                    }
+
+                                    // 调用API移动文件到目标区域
+                                    if (mounted) {
+                                      final result = await ApiService.moveFile(
+                                          file.id, targetSection);
+                                      bool success = result['code'] == 200;
+
+                                      if (success) {
+                                        TooltipUtil.showTooltip(
+                                          '移动成功',
+                                          TooltipPosition.fileAreaCenter,
+                                        );
+                                        _refreshFiles();
+
+                                        // 刷新所有区域
+                                        widget.onFilesChanged?.call();
+                                      } else {
+                                        TooltipUtil.showTooltip(
+                                          '移动失败',
+                                          TooltipPosition.fileAreaCenter,
+                                        );
+                                      }
+                                    }
+                                  },
+                                );
+                              },
+                            ),
                     );
                   } else {
                     return const Center(
@@ -380,7 +462,7 @@ class FileSectionState extends State<FileSection> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('确认删除'),
-          content: Text('确定要删除 "${file.name}" 吗？'),
+          content: Text('确定要删除 "${file.fileName}" 吗？'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -423,6 +505,8 @@ class FileSectionState extends State<FileSection> {
 
   // 新增：显示导入菜单（文件）
   void _showImportMenu(BuildContext context) {
+    if (_isProcessing || _isLoading) return; // 防止在处理中或加载中时重复操作
+
     showModalBottomSheet(
       context: context,
       builder: (BuildContext context) {
@@ -447,6 +531,8 @@ class FileSectionState extends State<FileSection> {
 
   // 选择并上传文件
   void _selectAndUploadFile() async {
+    if (_isProcessing) return; // 防止重复上传
+
     try {
       final result = await FilePicker.platform.pickFiles(
         allowMultiple: true,
@@ -469,6 +555,10 @@ class FileSectionState extends State<FileSection> {
       );
 
       if (result != null && result.files.isNotEmpty) {
+        setState(() {
+          _isProcessing = true;
+        });
+
         for (int i = 0; i < result.files.length; i++) {
           PlatformFile platformFile = result.files[i];
 
@@ -479,6 +569,12 @@ class FileSectionState extends State<FileSection> {
             await _uploadFileAtPath(platformFile);
           }
         }
+
+        if (mounted) {
+          setState(() {
+            _isProcessing = false;
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -486,6 +582,12 @@ class FileSectionState extends State<FileSection> {
           '文件选择失败',
           TooltipPosition.fileAreaCenter,
         );
+      }
+
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
       }
     }
   }
@@ -501,8 +603,9 @@ class FileSectionState extends State<FileSection> {
         );
       }
 
-      // 调用现有的API服务上传文件
-      final result = await ApiService.uploadFile(file, file.name);
+      // 调用现有的API服务上传文件，使用当前区域的section
+      final result =
+          await ApiService.uploadFile(file, file.name, _getSectionCode());
 
       if (result['code'] == 200 && mounted) {
         TooltipUtil.showTooltip(
@@ -511,6 +614,9 @@ class FileSectionState extends State<FileSection> {
         );
         // 刷新文件列表
         _refreshFiles();
+
+        // 通知父组件更新
+        widget.onFilesChanged?.call();
       } else if (mounted) {
         TooltipUtil.showTooltip(
           '上传失败: ${file.name}',
@@ -542,8 +648,9 @@ class FileSectionState extends State<FileSection> {
       if (file.path != null) {
         final actualFile = universal_io.File(file.path!);
 
-        // 调用现有的API服务上传文件
-        final result = await ApiService.uploadFile(actualFile, file.name);
+        // 调用现有的API服务上传文件，使用当前区域的section
+        final result = await ApiService.uploadFile(
+            actualFile, file.name, _getSectionCode());
 
         if (result['code'] == 200 && mounted) {
           TooltipUtil.showTooltip(
@@ -552,6 +659,9 @@ class FileSectionState extends State<FileSection> {
           );
           // 刷新文件列表
           _refreshFiles();
+
+          // 通知父组件更新
+          widget.onFilesChanged?.call();
         } else if (mounted) {
           TooltipUtil.showTooltip(
             '上传失败: ${file.name}',
@@ -566,6 +676,38 @@ class FileSectionState extends State<FileSection> {
           TooltipPosition.fileAreaCenter,
         );
       }
+    }
+  }
+
+  // 根据区域标题获取对应的section代码
+  String _getSectionCode() {
+    switch (widget.title) {
+      case '等待':
+        return 'wait';
+      case '读取':
+        return 'read';
+      case '模板':
+        return 'template';
+      case '结果':
+        return 'result';
+      default:
+        return widget.title;
+    }
+  }
+
+  // 根据区域标题获取对应的section代码（用于过滤）
+  String _getSectionCodeFromTitle(String title) {
+    switch (title) {
+      case '等待':
+        return 'wait';
+      case '读取':
+        return 'read';
+      case '模板':
+        return 'template';
+      case '结果':
+        return 'result';
+      default:
+        return title;
     }
   }
 }
@@ -627,15 +769,29 @@ class _FileItemState extends State<_FileItem> {
               size: MediaQuery.of(context).size.width > 768 ? 20 : 18,
             ),
             title: Text(
-              widget.file.name,
+              widget.file.originalName, // 使用originalName替代fileName
               style: TextStyle(
                   fontSize: MediaQuery.of(context).size.width > 768 ? 14 : 12),
             ),
-            subtitle: Text(
-              '文件 • ${_formatFileSize(widget.file.size)}',
-              style: TextStyle(
-                  fontSize: MediaQuery.of(context).size.width > 768 ? 12 : 10,
-                  color: Colors.grey),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '文件 • ${_formatFileSize(widget.file.size)}', // 仍使用size字段
+                  style: TextStyle(
+                      fontSize:
+                          MediaQuery.of(context).size.width > 768 ? 12 : 10,
+                      color: Colors.grey),
+                ),
+                Text(
+                  'ID: ${widget.file.id}',
+                  style: TextStyle(
+                      fontSize:
+                          MediaQuery.of(context).size.width > 768 ? 10 : 9,
+                      color: Colors.grey.shade600),
+                ),
+              ],
             ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 8.0),
             trailing: PopupMenuButton<String>(
@@ -646,96 +802,51 @@ class _FileItemState extends State<_FileItem> {
                     widget.onDoubleTap();
                     break;
                   case 'delete':
-                    // 如果是结果区文件，则不允许删除
-                    if (isResultFile) {
-                      if (mounted) {
-                        TooltipUtil.showTooltip(
-                          '结果区文件不允许删除',
-                          TooltipPosition.fileAreaCenter,
-                        );
-                      }
-                    } else {
-                      widget.onDelete();
-                    }
+                    widget.onDelete();
                     break;
                   case 'move_to_waiting':
-                    // 如果是结果区文件，则不允许移动
-                    if (isResultFile) {
-                      if (mounted) {
-                        TooltipUtil.showTooltip(
-                          '结果区文件不允许移动',
-                          TooltipPosition.fileAreaCenter,
-                        );
-                      }
-                    } else {
-                      widget.onMoveToSection('等待');
-                    }
+                    widget.onMoveToSection('wait');
                     break;
                   case 'move_to_read':
-                    // 如果是结果区文件，则不允许移动
-                    if (isResultFile) {
-                      if (mounted) {
-                        TooltipUtil.showTooltip(
-                          '结果区文件不允许移动',
-                          TooltipPosition.fileAreaCenter,
-                        );
-                      }
-                    } else {
-                      widget.onMoveToSection('读取');
-                    }
+                    widget.onMoveToSection('read');
                     break;
                   case 'move_to_template':
-                    // 如果是结果区文件，则不允许移动
-                    if (isResultFile) {
-                      if (mounted) {
-                        TooltipUtil.showTooltip(
-                          '结果区文件不允许移动',
-                          TooltipPosition.fileAreaCenter,
-                        );
-                      }
-                    } else {
-                      widget.onMoveToSection('模板');
-                    }
-                    break;
-                  case 'move_to_result':
-                    // 如果是结果区文件，则不允许移动
-                    if (isResultFile) {
-                      if (mounted) {
-                        TooltipUtil.showTooltip(
-                          '结果区文件不允许移动',
-                          TooltipPosition.fileAreaCenter,
-                        );
-                      }
-                    } else {
-                      widget.onMoveToSection('结果');
-                    }
+                    widget.onMoveToSection('template');
                     break;
                 }
               },
-              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                // 为文件添加打开选项
-                const PopupMenuItem<String>(value: 'open', child: Text('打开')),
-                const PopupMenuDivider(),
-                if (widget.currentSection != '等待' && !isResultFile)
+              itemBuilder: (context) => [
+                // 根据当前区域决定是否显示移动选项
+                if (widget.currentSection != '等待')
                   const PopupMenuItem<String>(
                     value: 'move_to_waiting',
-                    child: Text('移动到 等待'),
+                    child: Text('移到等待区',
+                        style: TextStyle(fontWeight: FontWeight.w300)),
                   ),
-                if (widget.currentSection != '读取' && !isResultFile)
+                if (widget.currentSection != '读取')
                   const PopupMenuItem<String>(
                     value: 'move_to_read',
-                    child: Text('移动到 读取'),
+                    child: Text('移到读取区',
+                        style: TextStyle(fontWeight: FontWeight.w300)),
                   ),
-                if (widget.currentSection != '模板' && !isResultFile)
+                if (widget.currentSection != '模板')
                   const PopupMenuItem<String>(
-                    value: 'move_to_template',
-                    child: Text('移动到 模板'),
+                    child: Text('移到模板区',
+                        style: TextStyle(fontWeight: FontWeight.w300)),
                   ),
                 const PopupMenuDivider(),
-                // 如果是结果区文件，则不显示删除选项
+                if (isResultFile)
+                  const PopupMenuItem<String>(
+                    value: 'export',
+                    child: Text('导出',
+                        style: TextStyle(fontWeight: FontWeight.w300)),
+                  ),
                 if (!isResultFile)
                   const PopupMenuItem<String>(
-                      value: 'delete', child: Text('删除')),
+                    value: 'delete',
+                    child: Text('删除',
+                        style: TextStyle(fontWeight: FontWeight.w300)),
+                  ),
               ],
             ),
           ),
@@ -744,104 +855,66 @@ class _FileItemState extends State<_FileItem> {
     );
   }
 
+  // 格式化文件大小
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '${bytes}B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)}KB';
+    if (bytes < 1024 * 1024 * 1024)
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)}MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)}GB';
+  }
+
   void _showContextMenu(BuildContext context) {
-    bool isResultFile = widget.file.section == 'result';
-
-    showModalBottomSheet(
+    // 显示上下文菜单
+    showMenu<String>(
       context: context,
-      builder: (BuildContext context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.info),
-                title: const Text('属性'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showFileDetails(context);
-                },
-              ),
-              // 为文件添加打开选项
-              ListTile(
-                leading: const Icon(Icons.open_in_browser),
-                title: const Text('打开'),
-                onTap: () {
-                  Navigator.pop(context);
-                  widget.onDoubleTap();
-                },
-              ),
-              // 如果是结果区文件，则不显示删除选项
-              if (!isResultFile)
-                ListTile(
-                  leading: const Icon(Icons.delete),
-                  title: const Text('删除'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    widget.onDelete();
-                  },
-                ),
-            ],
+      position: const RelativeRect.fromLTRB(0, 0, 0, 0),
+      items: [
+        // 根据当前区域决定是否显示移动选项
+        if (widget.currentSection != 'wait')
+          const PopupMenuItem<String>(
+            value: 'move_to_waiting',
+            child: Text('移到等待区'),
           ),
-        );
-      },
-    );
-  }
-
-  void _showFileDetails(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      builder: (BuildContext context) {
-        bool isResultFile = widget.file.section == 'result';
-
-        return SafeArea(
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.file.name,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text('类型: 文件'),
-                Text('ID: ${widget.file.id}'),
-                Text('区域: ${widget.file.section}'),
-                Text('大小: ${_formatFileSize(widget.file.size)}'),
-                Text('修改时间: ${_formatDateTime(widget.file.modified)}'),
-                // 如果是结果区文件，添加特殊标记
-                if (isResultFile)
-                  const Text(
-                    '注意: 此文件在结果区，不允许删除或移动',
-                    style: TextStyle(color: Colors.orange),
-                  ),
-              ],
-            ),
+        if (widget.currentSection != 'read')
+          const PopupMenuItem<String>(
+            value: 'move_to_read',
+            child: Text('移到读取区'),
           ),
-        );
-      },
-    );
-  }
-
-  String _formatFileSize(int size) {
-    if (size < 1024) {
-      return '$size B';
-    } else if (size < 1024 * 1024) {
-      return '${(size / 1024).toStringAsFixed(2)} KB';
-    } else if (size < 1024 * 1024 * 1024) {
-      return '${(size / (1024 * 1024)).toStringAsFixed(2)} MB';
-    } else {
-      return '${(size / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
-    }
-  }
-
-  String _formatDateTime(DateTime dateTime) {
-    return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} '
-        '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}:${dateTime.second.toString().padLeft(2, '0')}';
+        if (widget.currentSection != 'template')
+          const PopupMenuItem<String>(
+            value: 'move_to_template',
+            child: Text('移到模板区'),
+          ),
+        const PopupMenuDivider(),
+        const PopupMenuItem<String>(
+          value: 'delete',
+          child: Text('删除'),
+        ),
+      ],
+    ).then((value) {
+      if (value != null) {
+        switch (value) {
+          case 'open':
+            widget.onDoubleTap();
+            break;
+          case 'delete':
+            widget.onDelete();
+            break;
+          case 'move_to_waiting':
+            widget.onMoveToSection('wait');
+            break;
+          case 'move_to_read':
+            widget.onMoveToSection('read');
+            break;
+          case 'move_to_template':
+            widget.onMoveToSection('template');
+            break;
+          case 'move_to_result':
+            widget.onMoveToSection('result');
+            break;
+        }
+      }
+    });
   }
 }
