@@ -3,12 +3,15 @@ package com.project.aidoc.controller;
 import com.project.aidoc.common.Result;
 import com.project.aidoc.entity.ChatMessage;
 import com.project.aidoc.service.ChatService;
+import com.project.aidoc.service.impl.ChatServiceImpl;
 import cn.dev33.satoken.stp.StpUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.Map;
+import java.util.HashMap;
 
 @RestController
 @RequestMapping("/api/v1/chat")

@@ -80,8 +80,8 @@ public class ChatServiceImpl implements ChatService {
         // 保存用户消息
         saveMessage(userId, sessionId, message, "USER");
 
-        // 使用真实AI服务获取响应
-        String aiResponse = callAIService(userId, message);
+        // 使用真实AI服务获取响应，传递sessionId以获取对话历史
+        String aiResponse = callAIService(userId, sessionId, message);
 
         // 保存AI消息
         saveMessage(userId, sessionId, aiResponse, "AI");
@@ -93,30 +93,31 @@ public class ChatServiceImpl implements ChatService {
     public Set<String> getAllSessionIdsByUserId(Long userId) {
         // 从数据库中获取用户的所有聊天消息
         List<ChatMessage> allMessages = chatMessageRepository.findByUserIdOrderByTimestampAsc(userId);
-        
+
         // 提取唯一的会话ID
         Set<String> sessionIds = allMessages.stream()
                 .map(ChatMessage::getSessionId)
                 .filter(sessionId -> sessionId != null && !sessionId.isEmpty())
                 .collect(Collectors.toSet());
-                
+
         return sessionIds;
     }
 
     @Override
     public void deleteSessionBySessionId(Long userId, String sessionId) {
         // 检查会话是否存在
-        List<ChatMessage> sessionMessages = chatMessageRepository.findByUserIdAndSessionIdOrderByTimestampAsc(userId, sessionId);
-        
+        List<ChatMessage> sessionMessages = chatMessageRepository.findByUserIdAndSessionIdOrderByTimestampAsc(userId,
+                sessionId);
+
         if (sessionMessages.isEmpty()) {
             throw new IllegalArgumentException("会话不存在: " + sessionId);
         }
-        
+
         // 会话存在，执行删除操作
         chatMessageRepository.deleteByUserIdAndSessionId(userId, sessionId);
     }
 
-    private String callAIService(Long userId, String message) {
+    private String callAIService(Long userId, String sessionId, String message) {
         // 获取用户的配置
         UserConfig userConfig = userConfigService.getUserConfig(userId);
         if (userConfig == null || userConfig.getSiliconFlowApiKey() == null ||
@@ -137,10 +138,33 @@ public class ChatServiceImpl implements ChatService {
             // 系统提示
             Map<String, String> systemMsg = new HashMap<>();
             systemMsg.put("role", "system");
-            systemMsg.put("content", "你是AI助手，专门帮助用户管理文档和解答相关问题。");
+            systemMsg.put("content", "你是一个智能文档助手。请仔细记住并理解用户的所有对话历史，基于之前的对话内容来回答当前问题。你的回答应该体现出对之前对话的理解和连贯性。");
             messages.add(systemMsg);
 
-            // 用户消息
+            // 获取当前会话的历史记录（限制最近的15条消息以避免超出token限制）
+            List<ChatMessage> history = chatMessageRepository.findByUserIdAndSessionIdOrderByTimestampAsc(userId,
+                    sessionId);
+
+            // 如果历史记录很多，只取最近的15条
+            if (history.size() > 15) {
+                history = history.subList(Math.max(0, history.size() - 15), history.size());
+            }
+
+            // 添加历史对话记录到消息中（排除当前这条用户消息）
+            for (ChatMessage chatMessage : history) {
+                Map<String, String> historyMsg = new HashMap<>();
+                if ("USER".equals(chatMessage.getSenderType())) {
+                    historyMsg.put("role", "user");
+                    historyMsg.put("content", chatMessage.getContent());
+                    messages.add(historyMsg);
+                } else if ("AI".equals(chatMessage.getSenderType())) {
+                    historyMsg.put("role", "assistant");
+                    historyMsg.put("content", chatMessage.getContent());
+                    messages.add(historyMsg);
+                }
+            }
+
+            // 添加当前用户消息
             Map<String, String> userMsg = new HashMap<>();
             userMsg.put("role", "user");
             userMsg.put("content", message);
