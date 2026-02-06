@@ -3,8 +3,11 @@ import 'package:http/http.dart' as http;
 import 'dart:io' as io;
 import 'package:http_parser/http_parser.dart';
 import 'dart:typed_data';
+import 'dart:async';
 import '../config/server_config.dart';
 import '../config/auth_config.dart';
+import 'package:universal_html/html.dart' as html;
+import 'package:flutter/foundation.dart'; // 导入kIsWeb
 
 // 虚拟文件类，用于在Web环境中适配uploadFile方法
 class _VirtualFileForWeb {
@@ -255,24 +258,96 @@ class ApiService {
       String baseUrl = ServerConfig.baseUrl;
       String downloadUrl = '$baseUrl/api/v1/files/$fileId/download';
 
-      final response = await http.get(
-        Uri.parse(downloadUrl),
-        headers: <String, String>{
-          'Authorization': 'Bearer ${AuthConfig.getUserToken() ?? ''}',
-        },
-      ).timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        return {
-          'code': 200,
-          'data': response.bodyBytes,
-          'filename': response.headers['content-disposition']
-        };
+      // 使用kIsWeb检测是否为Web平台
+      if (kIsWeb) {
+        // 创建XMLHttpRequest对象来处理二进制数据
+        final xhr = html.HttpRequest();
+        xhr.responseType = 'blob'; // 重要：设置响应类型为blob以正确处理二进制数据
+        
+        Completer<Map<String, dynamic>> completer = Completer();
+        
+        xhr.onLoad.listen((event) {
+          if (xhr.status == 200) {
+            final blob = html.Blob([xhr.response]);
+            
+            // 从响应头获取文件名，如果有的话
+            String? contentDisposition = xhr.getResponseHeader('Content-Disposition');
+            String filename = 'downloaded_file';
+            
+            if (contentDisposition != null) {
+              // 从Content-Disposition头提取文件名
+              RegExp exp = RegExp(r"filename\*?=UTF-8''([^;]+)");
+              Match? match = exp.firstMatch(contentDisposition);
+              
+              if (match != null) {
+                // 解码URL编码的文件名
+                String encodedFilename = match.group(1)?.trim() ?? '';
+                try {
+                  filename = Uri.decodeComponent(encodedFilename);
+                } catch (e) {
+                  // 如果解码失败，使用原始编码名称
+                  filename = encodedFilename;
+                }
+              } else {
+                // 如果没有找到UTF-8编码的文件名，尝试普通的filename参数
+                exp = RegExp(r'filename=([^;]+)');
+                match = exp.firstMatch(contentDisposition);
+                if (match != null) {
+                  filename = match.group(1)?.trim() ?? filename;
+                  // 去掉可能的引号
+                  filename = filename.replaceAll(RegExp(r'^"|"$'), '');
+                }
+              }
+            }
+            
+            // 创建临时链接并下载
+            final url = html.Url.createObjectUrl(blob);
+            final anchor = html.AnchorElement()
+              ..href = url
+              ..style.display = 'none'
+              ..download = filename;
+            
+            html.document.body!.children.add(anchor);
+            anchor.click();
+            html.document.body!.children.remove(anchor);
+            html.Url.revokeObjectUrl(url);
+            
+            completer.complete({'code': 200, 'message': '下载成功'});
+          } else {
+            completer.complete({'code': xhr.status ?? 500, 'message': '下载失败'});
+          }
+        });
+        
+        xhr.onError.listen((event) {
+          completer.complete({'code': 500, 'message': '网络错误'});
+        });
+        
+        xhr.open('GET', downloadUrl);
+        xhr.setRequestHeader('Authorization', 'Bearer ${AuthConfig.getUserToken() ?? ''}');
+        xhr.send();
+        
+        return await completer.future;
       } else {
-        return {'code': response.statusCode, 'message': '下载文件失败', 'data': null};
+        // 在原生环境中，获取文件数据
+        final response = await http.get(
+          Uri.parse(downloadUrl),
+          headers: <String, String>{
+            'Authorization': 'Bearer ${AuthConfig.getUserToken() ?? ''}',
+          },
+        ).timeout(const Duration(seconds: 30));
+
+        if (response.statusCode == 200) {
+          return {
+            'code': 200,
+            'data': response.bodyBytes,
+            'filename': response.headers['content-disposition']
+          };
+        } else {
+          return {'code': response.statusCode, 'message': '下载文件失败', 'data': null};
+        }
       }
     } catch (e) {
-      return {'code': -1, 'message': '网络请求失败', 'data': null};
+      return {'code': -1, 'message': '网络请求失败: $e', 'data': null};
     }
   }
 

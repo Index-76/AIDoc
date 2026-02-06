@@ -43,7 +43,7 @@ class _CopyButtonState extends State<CopyButton> {
           });
 
           Clipboard.setData(ClipboardData(text: widget.message.text));
-          TooltipUtil.showTooltip("已复制到剪贴板", TooltipPosition.windowCenter);
+          TooltipUtil.showTooltip("复制成功", TooltipPosition.chatAreaCenter);
 
           // 重置复制状态
           Future.delayed(const Duration(milliseconds: 300), () {

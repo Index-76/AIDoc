@@ -46,6 +46,7 @@ dependencies:
   web: ^0.5.1
   universal_io: ^2.0.4
   flutter_file_dialog: ^3.0.2
+  universal_html: ^2.0.0
 
 dev_dependencies:
   flutter_test:

@@ -88,15 +88,22 @@ public class FileController {
             }
 
             HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
             
-            // 使用原始文件名而不是ID
+            // 根据文件扩展名设置正确的Content-Type
+            String fileExtension = getFileExtension(fileInfo.getFileName());
+            String contentType = determineContentType(fileExtension);
+            headers.setContentType(MediaType.parseMediaType(contentType));
+            
+            // 使用原始文件名，解决中文字符编码问题
             String originalFilename = fileInfo.getOriginalName();
             if (originalFilename == null || originalFilename.isEmpty()) {
-                originalFilename = fileId; // 如果原始文件名为空，则使用ID作为备选
+                originalFilename = fileId + "." + fileExtension;
             }
             
-            headers.setContentDispositionFormData("attachment", originalFilename);
+            // 对文件名进行URL编码以解决中文字符问题
+            String encodedFilename = java.net.URLEncoder.encode(originalFilename, "UTF-8").replace("+", "%20");
+            
+            headers.add("Content-Disposition", "attachment; filename*=UTF-8''" + encodedFilename);
             headers.setContentLength(fileContent.length);
 
             return ResponseEntity.ok()
@@ -105,6 +112,65 @@ public class FileController {
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Result.error(500, "下载失败: " + e.getMessage()));
         }
+    }
+    
+    // 根据文件扩展名确定Content-Type
+    private String determineContentType(String fileExtension) {
+        if (fileExtension == null) {
+            return MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        }
+        
+        switch (fileExtension.toLowerCase()) {
+            case "pdf":
+                return "application/pdf";
+            case "doc":
+                return "application/msword";
+            case "docx":
+                return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            case "xls":
+                return "application/vnd.ms-excel";
+            case "xlsx":
+                return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            case "ppt":
+                return "application/vnd.ms-powerpoint";
+            case "pptx":
+                return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+            case "txt":
+                return "text/plain";
+            case "jpg":
+            case "jpeg":
+                return "image/jpeg";
+            case "png":
+                return "image/png";
+            case "gif":
+                return "image/gif";
+            case "bmp":
+                return "image/bmp";
+            case "html":
+                return "text/html";
+            case "css":
+                return "text/css";
+            case "js":
+                return "application/javascript";
+            case "json":
+                return "application/json";
+            case "xml":
+                return "application/xml";
+            case "zip":
+                return "application/zip";
+            case "rar":
+                return "application/x-rar-compressed";
+            default:
+                return MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        }
+    }
+    
+    // 辅助方法：获取文件扩展名
+    private String getFileExtension(String fileName) {
+        if (fileName == null || fileName.lastIndexOf('.') == -1) {
+            return "";
+        }
+        return fileName.substring(fileName.lastIndexOf('.') + 1);
     }
 
     @DeleteMapping("/{fileId}/delete")

@@ -138,7 +138,7 @@ public class ChatServiceImpl implements ChatService {
             // 系统提示
             Map<String, String> systemMsg = new HashMap<>();
             systemMsg.put("role", "system");
-            systemMsg.put("content", "你是一个智能文档助手。请仔细记住并理解用户的所有对话历史，基于之前的对话内容来回答当前问题。你的回答应该体现出对之前对话的理解和连贯性。");
+            systemMsg.put("content", "你是一个智能文档助手。你拥有调用目录查看、内容总结、格式转换、智能填表、智能修改工具的能力。请仔细记住并理解用户的所有对话历史，基于之前的对话内容来回答当前问题。你的回答应该体现出对之前对话的理解和连贯性。");
             messages.add(systemMsg);
 
             // 获取当前会话的历史记录（限制最近的15条消息以避免超出token限制）

@@ -109,9 +109,10 @@ public class FileServiceImpl implements FileService {
                 
             if (gridFsFile != null) {
                 try {
-                    // 通过GridFsResource获取文件内容
-                    org.springframework.core.io.Resource resource = gridFsTemplate.getResource(gridFsFile.getFilename());
-                    return org.springframework.util.StreamUtils.copyToByteArray(resource.getInputStream());
+                    // 使用GridFSFile的id直接获取文件内容，而不是通过文件名
+                    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+                    gridFsTemplate.getResource(gridFsFile).getInputStream().transferTo(outputStream);
+                    return outputStream.toByteArray();
                 } catch (IOException e) {
                     throw new RuntimeException("无法读取文件内容", e);
                 }

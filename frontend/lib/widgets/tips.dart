@@ -17,11 +17,13 @@ class TooltipInfo {
   final String message;
   final TooltipPosition position;
   final DateTime timestamp;
+  final int id; // 使用整数ID而不是字符串
 
   TooltipInfo({
     required this.message,
     required this.position,
     required this.timestamp,
+    required this.id,
   });
 }
 
@@ -36,14 +38,18 @@ class TooltipOverlay extends StatefulWidget {
 
   /// 显示提示的静态方法
   static void showTooltip(String message, TooltipPosition position) {
-    _TooltipOverlayState.showTooltip(message, position);
+    _TooltipOverlayState? instance = _TooltipOverlayState._instance;
+    if (instance != null && instance.mounted) {
+      instance.showTooltip(message, position);
+    }
   }
 }
 
 class _TooltipOverlayState extends State<TooltipOverlay>
     with TickerProviderStateMixin {
-  static final List<TooltipInfo> _tooltips = [];
   static _TooltipOverlayState? _instance;
+  final List<TooltipInfo> _tooltips = [];
+  int _nextId = 0;
 
   @override
   void initState() {
@@ -53,36 +59,35 @@ class _TooltipOverlayState extends State<TooltipOverlay>
 
   @override
   void dispose() {
-    _instance = null;
+    if (_instance == this) {
+      _instance = null;
+    }
     super.dispose();
   }
 
   /// 显示提示
-  static void showTooltip(String message, TooltipPosition position) {
-    if (_instance != null && _instance!.mounted) {
-      _instance!.setState(() {
-        _tooltips.add(
-          TooltipInfo(
-            message: message,
-            position: position,
-            timestamp: DateTime.now(),
-          ),
-        );
-      });
+  void showTooltip(String message, TooltipPosition position) {
+    int id = _nextId++;
+    TooltipInfo newTooltip = TooltipInfo(
+      message: message,
+      position: position,
+      timestamp: DateTime.now(),
+      id: id,
+    );
 
-      // 2秒后自动移除提示
-      Future.delayed(const Duration(seconds: 2), () {
-        if (_instance != null && _instance!.mounted) {
-          // 查找并移除特定的消息
-          _instance!.setState(() {
-            _tooltips.removeWhere((tooltip) => 
-              tooltip.message == message && 
-              tooltip.timestamp.isAfter(DateTime.now().subtract(const Duration(milliseconds: 50))) // 防止移除其他相同消息
-            );
-          });
-        }
-      });
-    }
+    setState(() {
+      _tooltips.add(newTooltip);
+    });
+
+    // 1秒后自动移除提示
+    Future.delayed(const Duration(milliseconds: 1000), () {
+      // 检查组件是否仍然挂载
+      if (mounted) {
+        setState(() {
+          _tooltips.removeWhere((tooltip) => tooltip.id == id);
+        });
+      }
+    });
   }
 
   @override
@@ -103,7 +108,7 @@ class _TooltipOverlayState extends State<TooltipOverlay>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.8),
+          color: Colors.black.withValues(alpha: 0.8), // 使用新的透明度API
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(

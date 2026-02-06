@@ -74,7 +74,23 @@ class FileSectionState extends State<FileSection> {
       final filesData = result['data'] as List;
       final files = filesData.map((item) => FileInfo.fromJson(item)).toList();
 
-      if (files.length == 1) {
+      // 根据当前区域过滤文件，只有结果区才显示所有文件，其他区域只显示当前区域的文件
+      List<FileInfo> filteredFiles;
+      if (widget.title == '结果') {
+        // 结果区：不过滤，显示所有文件（但可以考虑只显示结果区文件）
+        filteredFiles = files;
+      } else {
+        // 其他区域：只显示当前区域的文件
+        String sectionCode = _getSectionCodeFromTitle(widget.title);
+        filteredFiles =
+            files.where((file) => file.section == sectionCode).toList();
+      }
+
+      if (filteredFiles.isEmpty) {
+        return;
+      }
+
+      if (filteredFiles.length == 1) {
         if (mounted) {
           setState(() {
             _isProcessing = true;
@@ -82,10 +98,10 @@ class FileSectionState extends State<FileSection> {
         }
 
         // 如果只有一个文件，直接下载
-        _downloadFile(files.first);
+        _downloadFile(filteredFiles.first);
       } else {
         // 如果有多个文件，让用户选择要导出的文件
-        _selectFilesToExport(files);
+        _selectFilesToExport(filteredFiles);
       }
     } catch (e) {
       if (mounted) {
@@ -134,6 +150,13 @@ class FileSectionState extends State<FileSection> {
       showDialog(
         context: context,
         builder: (BuildContext context) {
+          // 如果当前是结果区，则只显示结果区的文件
+          List<FileInfo> displayFiles = files;
+          if (widget.title == '结果') {
+            displayFiles =
+                files.where((file) => file.section == 'result').toList();
+          }
+
           return StatefulBuilder(
             builder: (context, setState) {
               return AlertDialog(
@@ -142,9 +165,9 @@ class FileSectionState extends State<FileSection> {
                   width: double.maxFinite,
                   child: ListView.builder(
                     shrinkWrap: true,
-                    itemCount: files.length,
+                    itemCount: displayFiles.length,
                     itemBuilder: (context, index) {
-                      final file = files[index];
+                      final file = displayFiles[index];
                       return CheckboxListTile(
                         value: selectedFiles.contains(file),
                         onChanged: (bool? value) {
@@ -259,19 +282,19 @@ class FileSectionState extends State<FileSection> {
                 const Spacer(),
                 IconButton(
                   icon: Icon(
-                    widget.title == 'result'
-                        ? Icons.download_for_offline_outlined
-                        : Icons.upload_file,
+                    widget.title == '结果'
+                        ? Icons.download_for_offline_outlined // 结果区显示下载图标
+                        : Icons.upload_file, // 其他区显示上传图标
                     size: MediaQuery.of(context).size.width > 768 ? 20 : 18,
                   ),
                   onPressed: () async {
                     if (_isProcessing || _isLoading) return; // 防止在处理中或加载中时重复操作
 
-                    if (widget.title == 'result') {
-                      // 导出文件功能
+                    if (widget.title == '结果') {
+                      // 结果区执行下载功能
                       _exportFiles();
                     } else {
-                      // 导入文件功能 - 显示选项菜单
+                      // 其他区域执行上传功能
                       _showImportMenu(context);
                     }
                   },
@@ -376,22 +399,12 @@ class FileSectionState extends State<FileSection> {
                                     // 暂时不做任何操作
                                   },
                                   onDelete: () {
-                                    // 如果当前区域是结果区，则不允许删除
-                                    if (widget.title == 'result') {
-                                      if (mounted) {
-                                        TooltipUtil.showTooltip(
-                                          '结果区文件不允许删除',
-                                          TooltipPosition.fileAreaCenter,
-                                        );
-                                      }
-                                      return;
-                                    }
                                     _confirmDelete(context, file);
                                   },
                                   onRefresh: _refreshFiles,
                                   onMoveToSection: (targetSection) async {
                                     // 如果当前区域是结果区，则不允许移动
-                                    if (widget.title == 'result') {
+                                    if (widget.title == '结果') {
                                       if (mounted) {
                                         TooltipUtil.showTooltip(
                                           '结果区文件不允许移动',
@@ -446,17 +459,6 @@ class FileSectionState extends State<FileSection> {
   }
 
   void _confirmDelete(BuildContext context, FileInfo file) {
-    // 如果文件在结果区，则不允许删除
-    if (file.section == 'result') {
-      if (mounted) {
-        TooltipUtil.showTooltip(
-          '结果区文件不允许删除',
-          TooltipPosition.fileAreaCenter,
-        );
-      }
-      return;
-    }
-
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -831,22 +833,17 @@ class _FileItemState extends State<_FileItem> {
                   ),
                 if (widget.currentSection != '模板')
                   const PopupMenuItem<String>(
+                    value: 'move_to_template', // 添加缺失的value参数
                     child: Text('移到模板区',
                         style: TextStyle(fontWeight: FontWeight.w300)),
                   ),
                 const PopupMenuDivider(),
-                if (isResultFile)
-                  const PopupMenuItem<String>(
-                    value: 'export',
-                    child: Text('导出',
-                        style: TextStyle(fontWeight: FontWeight.w300)),
-                  ),
-                if (!isResultFile)
-                  const PopupMenuItem<String>(
-                    value: 'delete',
-                    child: Text('删除',
-                        style: TextStyle(fontWeight: FontWeight.w300)),
-                  ),
+                // 统一删除操作，不管文件在哪个区域
+                const PopupMenuItem<String>(
+                  value: 'delete',
+                  child:
+                      Text('删除', style: TextStyle(fontWeight: FontWeight.w300)),
+                ),
               ],
             ),
           ),
