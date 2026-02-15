@@ -12,6 +12,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.Data;
+
 import java.io.IOException;
 import java.util.List;
 
@@ -52,7 +54,7 @@ public class FileController {
         } else if (files != null && !files.isEmpty()) {
             multipartFile = files;
         }
-        
+
         if (multipartFile == null || multipartFile.isEmpty()) {
             return Result.error(400, "文件不能为空或未找到名为'file'、'upload'或'files'的参数，请确保前端使用multipart/form-data格式发送请求");
         }
@@ -74,13 +76,13 @@ public class FileController {
 
         try {
             Long userId = Long.parseLong(StpUtil.getLoginIdAsString());
-            
+
             // 先获取文件信息以获取原始文件名
             com.project.aidoc.entity.File fileInfo = fileService.getFileById(fileId, userId);
             if (fileInfo == null) {
                 return ResponseEntity.status(404).body(Result.error(404, "文件不存在或无权限访问"));
             }
-            
+
             byte[] fileContent = fileService.getFileContent(fileId, userId);
 
             if (fileContent == null) {
@@ -88,21 +90,21 @@ public class FileController {
             }
 
             HttpHeaders headers = new HttpHeaders();
-            
+
             // 根据文件扩展名设置正确的Content-Type
             String fileExtension = getFileExtension(fileInfo.getFileName());
             String contentType = determineContentType(fileExtension);
             headers.setContentType(MediaType.parseMediaType(contentType));
-            
+
             // 使用原始文件名，解决中文字符编码问题
             String originalFilename = fileInfo.getOriginalName();
             if (originalFilename == null || originalFilename.isEmpty()) {
                 originalFilename = fileId + "." + fileExtension;
             }
-            
+
             // 对文件名进行URL编码以解决中文字符问题
             String encodedFilename = java.net.URLEncoder.encode(originalFilename, "UTF-8").replace("+", "%20");
-            
+
             headers.add("Content-Disposition", "attachment; filename*=UTF-8''" + encodedFilename);
             headers.setContentLength(fileContent.length);
 
@@ -113,13 +115,13 @@ public class FileController {
             return ResponseEntity.status(500).body(Result.error(500, "下载失败: " + e.getMessage()));
         }
     }
-    
+
     // 根据文件扩展名确定Content-Type
     private String determineContentType(String fileExtension) {
         if (fileExtension == null) {
             return MediaType.APPLICATION_OCTET_STREAM_VALUE;
         }
-        
+
         switch (fileExtension.toLowerCase()) {
             case "pdf":
                 return "application/pdf";
@@ -164,7 +166,7 @@ public class FileController {
                 return MediaType.APPLICATION_OCTET_STREAM_VALUE;
         }
     }
-    
+
     // 辅助方法：获取文件扩展名
     private String getFileExtension(String fileName) {
         if (fileName == null || fileName.lastIndexOf('.') == -1) {
@@ -180,7 +182,7 @@ public class FileController {
         }
 
         Long userId = Long.parseLong(StpUtil.getLoginIdAsString());
-        
+
         try {
             fileService.deleteFileById(fileId, userId);
             return Result.success("文件删除成功");
@@ -197,7 +199,7 @@ public class FileController {
 
         Long userId = Long.parseLong(StpUtil.getLoginIdAsString());
         File movedFile = fileService.moveFileToSection(fileId, request.getDestinationSectionId(), userId);
-        
+
         if (movedFile != null) {
             return Result.success(movedFile);
         } else {
@@ -213,7 +215,7 @@ public class FileController {
 
         Long userId = Long.parseLong(StpUtil.getLoginIdAsString());
         File renamedFile = fileService.renameFile(fileId, request.getNewName(), userId);
-        
+
         if (renamedFile != null) {
             return Result.success(renamedFile);
         } else {
@@ -235,15 +237,8 @@ public class FileController {
     }
 
     // 内部类用于接收重命名文件的请求体
+    @Data
     public static class RenameFileRequest {
         private String newName;
-
-        public String getNewName() {
-            return newName;
-        }
-
-        public void setNewName(String newName) {
-            this.newName = newName;
-        }
     }
 }

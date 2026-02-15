@@ -1,10 +1,12 @@
 package com.project.aidoc.entity;
 
+import lombok.Data;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import java.time.LocalDateTime;
 
 @Document(collection = "chat_messages")
+@Data
 public class ChatMessage {
     @Id
     private String id;
@@ -17,54 +19,5 @@ public class ChatMessage {
     
     public ChatMessage() {
         this.timestamp = LocalDateTime.now();
-    }
-
-    // Getters and Setters
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public Long getUserId() {
-        return userId;
-    }
-
-    public void setUserId(Long userId) {
-        this.userId = userId;
-    }
-
-    public String getSessionId() {
-        return sessionId;
-    }
-
-    public void setSessionId(String sessionId) {
-        this.sessionId = sessionId;
-    }
-
-    public String getContent() {
-        return content;
-    }
-
-    public void setContent(String content) {
-        this.content = content;
-    }
-
-    public String getSenderType() {
-        return senderType;
-    }
-
-    public void setSenderType(String senderType) {
-        this.senderType = senderType;
-    }
-
-    public LocalDateTime getTimestamp() {
-        return timestamp;
-    }
-
-    public void setTimestamp(LocalDateTime timestamp) {
-        this.timestamp = timestamp;
     }
 }

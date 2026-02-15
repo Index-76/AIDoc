@@ -18,4 +18,10 @@ public interface ChatService {
     Set<String> getAllSessionIdsByUserId(Long userId);
 
     void deleteSessionBySessionId(Long userId, String sessionId);
+
+    // 异步处理消息的方法
+    void processMessageAsync(Long userId, String sessionId, String message);
+
+    // 创建欢迎消息的方法
+    void createWelcomeMessage(Long userId, String sessionId);
 }

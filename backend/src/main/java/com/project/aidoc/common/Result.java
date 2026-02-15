@@ -2,6 +2,9 @@ package com.project.aidoc.common;
 
 import java.io.Serializable;
 
+import lombok.Data;
+
+@Data
 public class Result<T> implements Serializable {
     private static final long serialVersionUID = 1L;
 
@@ -43,27 +46,4 @@ public class Result<T> implements Serializable {
         return new Result<>(code, msg);
     }
 
-    public int getCode() {
-        return code;
-    }
-
-    public void setCode(int code) {
-        this.code = code;
-    }
-
-    public String getMsg() {
-        return msg;
-    }
-
-    public void setMsg(String msg) {
-        this.msg = msg;
-    }
-
-    public T getData() {
-        return data;
-    }
-
-    public void setData(T data) {
-        this.data = data;
-    }
 }

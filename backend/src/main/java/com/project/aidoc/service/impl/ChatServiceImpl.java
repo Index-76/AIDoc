@@ -7,27 +7,20 @@ import com.project.aidoc.service.ChatService;
 import com.project.aidoc.service.UserConfigService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.aggregation.Aggregation;
-import org.springframework.data.mongodb.core.aggregation.GroupOperation;
-import org.springframework.data.mongodb.core.aggregation.AggregationResults;
-import org.springframework.data.mongodb.core.aggregation.MatchOperation;
-import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.HashSet;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -43,11 +36,9 @@ public class ChatServiceImpl implements ChatService {
     private MongoTemplate mongoTemplate;
 
     private final RestTemplate restTemplate;
-    private final ObjectMapper objectMapper;
 
     public ChatServiceImpl() {
         this.restTemplate = new RestTemplate();
-        this.objectMapper = new ObjectMapper();
     }
 
     @Override
@@ -67,6 +58,7 @@ public class ChatServiceImpl implements ChatService {
         message.setSessionId(sessionId);
         message.setContent(content);
         message.setSenderType(senderType);
+        message.setTimestamp(LocalDateTime.now());
         return chatMessageRepository.save(message);
     }
 
@@ -80,7 +72,7 @@ public class ChatServiceImpl implements ChatService {
         // 保存用户消息
         saveMessage(userId, sessionId, message, "USER");
 
-        // 使用真实AI服务获取响应，传递sessionId以获取对话历史
+        // 使用AI服务获取响应，传递sessionId以获取对话历史
         String aiResponse = callAIService(userId, sessionId, message);
 
         // 保存AI消息
@@ -90,11 +82,40 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
+    @Async
+    public void processMessageAsync(Long userId, String sessionId, String message) {
+        try {
+            // 保存用户消息
+            saveMessage(userId, sessionId, message, "USER");
+
+            // 使用AI服务获取响应
+            String aiResponse = callAIService(userId, sessionId, message);
+
+            // 保存AI消息
+            saveMessage(userId, sessionId, aiResponse, "AI");
+        } catch (Exception e) {
+            // 记录异步处理错误，但不影响主流程
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void createWelcomeMessage(Long userId, String sessionId) {
+        // 创建欢迎消息
+        ChatMessage welcomeMessage = new ChatMessage();
+        welcomeMessage.setUserId(userId);
+        welcomeMessage.setSessionId(sessionId);
+        welcomeMessage.setContent("您好！我是您的AI智能文档助手，有什么我可以帮您的吗？");
+        welcomeMessage.setSenderType("AI");
+        welcomeMessage.setTimestamp(LocalDateTime.now());
+        chatMessageRepository.save(welcomeMessage);
+    }
+
+    @Override
     public Set<String> getAllSessionIdsByUserId(Long userId) {
-        // 从数据库中获取用户的所有聊天消息
+
         List<ChatMessage> allMessages = chatMessageRepository.findByUserIdOrderByTimestampAsc(userId);
 
-        // 提取唯一的会话ID
         Set<String> sessionIds = allMessages.stream()
                 .map(ChatMessage::getSessionId)
                 .filter(sessionId -> sessionId != null && !sessionId.isEmpty())
@@ -138,7 +159,13 @@ public class ChatServiceImpl implements ChatService {
             // 系统提示
             Map<String, String> systemMsg = new HashMap<>();
             systemMsg.put("role", "system");
-            systemMsg.put("content", "你是一个智能文档助手。你拥有调用目录查看、内容总结、格式转换、智能填表、智能修改工具的能力。请仔细记住并理解用户的所有对话历史，基于之前的对话内容来回答当前问题。你的回答应该体现出对之前对话的理解和连贯性。");
+            systemMsg.put("content", "你是AI助手，专门帮助用户管理文档和解答相关问题。你可以使用以下工具：\n" +
+                    "1. 目录查看 - 查看文件目录结构\n" +
+                    "2. 内容总结 - 总结文档内容\n" +
+                    "3. 格式转换 - 转换文件格式\n" +
+                    "4. 智能填表 - 自动填写表格\n" +
+                    "5. 智能修改 - 智能编辑文档\n" +
+                    "当用户需要使用这些功能时，请在回复中明确提及相应的工具名称。");
             messages.add(systemMsg);
 
             // 获取当前会话的历史记录（限制最近的15条消息以避免超出token限制）
@@ -174,38 +201,32 @@ public class ChatServiceImpl implements ChatService {
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("model", userConfig.getChatModelName());
             requestBody.put("messages", messages);
-            requestBody.put("stream", false);
+            requestBody.put("max_tokens", 1000);
+            requestBody.put("temperature", 0.7);
 
-            // 创建HttpEntity
+            // 发送请求到硅基流动API
+            RestTemplate restTemplate = new RestTemplate();
             HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestBody, headers);
 
-            // 发送请求
-            ResponseEntity<String> responseEntity = restTemplate.postForEntity(
+            ResponseEntity<Map> response = restTemplate.postForEntity(
                     userConfig.getSiliconFlowBaseUrl(),
                     requestEntity,
-                    String.class);
+                    Map.class);
 
-            if (responseEntity.getStatusCode().value() == 200) {
-                String responseBody = responseEntity.getBody();
-                JsonNode responseJson = objectMapper.readTree(responseBody);
-
-                // 解析响应，获取AI的回答
-                JsonNode choicesNode = responseJson.get("choices");
-                if (choicesNode != null && choicesNode.isArray() && choicesNode.size() > 0) {
-                    JsonNode firstChoice = choicesNode.get(0);
-                    JsonNode messageNode = firstChoice.get("message");
-                    if (messageNode != null) {
-                        String aiResponse = messageNode.get("content").asText();
-                        return aiResponse;
-                    }
+            // 解析响应
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                Map<String, Object> responseBody = response.getBody();
+                List<Map<String, Object>> choices = (List<Map<String, Object>>) responseBody.get("choices");
+                if (choices != null && !choices.isEmpty()) {
+                    Map<String, Object> messageObj = (Map<String, Object>) choices.get(0).get("message");
+                    return (String) messageObj.get("content");
                 }
-            } else {
-                return "API请求失败，状态码: " + responseEntity.getStatusCodeValue();
             }
-        } catch (Exception e) {
-            return "调用AI服务时发生错误: " + e.getMessage();
-        }
 
-        return "未能获取AI响应";
+            return "抱歉，我无法处理您的请求。";
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "抱歉，处理您的请求时出现错误：" + e.getMessage();
+        }
     }
 }

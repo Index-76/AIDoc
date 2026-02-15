@@ -5,6 +5,8 @@ import com.project.aidoc.entity.ChatMessage;
 import com.project.aidoc.service.ChatService;
 import com.project.aidoc.service.impl.ChatServiceImpl;
 import cn.dev33.satoken.stp.StpUtil;
+import lombok.Data;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -20,7 +22,7 @@ public class ChatController {
     @Autowired
     private ChatService chatService;
 
-    @GetMapping("/sessions")
+    @GetMapping("/sessionList")
     public Result<Set<String>> getSessionList() {
         if (!StpUtil.isLogin()) {
             return Result.error(401, "用户未登录");
@@ -71,10 +73,15 @@ public class ChatController {
         }
 
         Long userId = Long.parseLong(StpUtil.getLoginIdAsString());
-        String sessionId = request.getSessionId() != null ? request.getSessionId() : "default_session"; // 使用请求中的会话ID或默认会话ID
-        String response = chatService.processMessage(userId, sessionId, request.getMessage());
+        String sessionId = request.getSessionId() != null ? request.getSessionId() : "default_session";
 
-        return Result.success(response);
+        try {
+            // 异步处理消息，立即返回成功
+            chatService.processMessageAsync(userId, sessionId, request.getMessage());
+            return Result.success("消息发送成功");
+        } catch (Exception e) {
+            return Result.error(500, "消息发送失败: " + e.getMessage());
+        }
     }
 
     @PostMapping("/new")
@@ -83,30 +90,24 @@ public class ChatController {
             return Result.error(401, "用户未登录");
         }
 
-        // 生成新的会话ID
-        String newSessionId = UUID.randomUUID().toString();
-        return Result.success(newSessionId);
+        try {
+            // 生成新的会话ID
+            String newSessionId = UUID.randomUUID().toString();
+
+            // 创建新会话时自动添加欢迎消息
+            Long userId = Long.parseLong(StpUtil.getLoginIdAsString());
+            chatService.createWelcomeMessage(userId, newSessionId);
+
+            return Result.success(newSessionId);
+        } catch (Exception e) {
+            return Result.error(500, "创建新对话失败: " + e.getMessage());
+        }
     }
 
     // 内部类用于接收发送消息的请求体
+    @Data
     public static class MessageRequest {
         private String message;
         private String sessionId;
-
-        public String getMessage() {
-            return message;
-        }
-
-        public void setMessage(String message) {
-            this.message = message;
-        }
-
-        public String getSessionId() {
-            return sessionId;
-        }
-
-        public void setSessionId(String sessionId) {
-            this.sessionId = sessionId;
-        }
     }
 }

@@ -35,7 +35,7 @@ public class MultiDataSourceConfig {
     public SqlSessionFactory mysqlSqlSessionFactory() throws Exception {
         SqlSessionFactoryBean factoryBean = new SqlSessionFactoryBean();
         factoryBean.setDataSource(mysqlDataSource);
-        
+
         // 设置mapper位置，如果不存在mapper XML文件，可以不设置或设置为一个存在的路径
         PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
         try {
@@ -43,9 +43,8 @@ public class MultiDataSourceConfig {
             factoryBean.setMapperLocations(resolver.getResources("classpath:mapper/*.xml"));
         } catch (Exception e) {
             // 如果mapper路径不存在，继续执行，不设置mapperLocations
-            System.out.println("No mapper XML files found, proceeding without XML mappers");
         }
-        
+
         return factoryBean.getObject();
     }
 
@@ -55,10 +54,9 @@ public class MultiDataSourceConfig {
     @Bean(name = "mongoTemplate")
     public MongoTemplate mongoTemplate() {
         MongoClient mongoClient = MongoClients.create(
-            "mongodb://" + 
-            System.getProperty("spring.data.mongodb.host", "localhost") + ":" + 
-            System.getProperty("spring.data.mongodb.port", "27017")
-        );
+                "mongodb://" +
+                        System.getProperty("spring.data.mongodb.host", "localhost") + ":" +
+                        System.getProperty("spring.data.mongodb.port", "27017"));
         String database = System.getProperty("spring.data.mongodb.database", "aidoc_dev");
         return new MongoTemplate(mongoClient, database);
     }

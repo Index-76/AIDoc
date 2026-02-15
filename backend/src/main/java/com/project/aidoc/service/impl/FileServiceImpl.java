@@ -32,7 +32,7 @@ public class FileServiceImpl implements FileService {
     public File saveFile(MultipartFile file, String section, Long userId) throws Exception {
         // 生成唯一的文件名
         String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
-        
+
         // 将文件保存到GridFS
         ObjectId objectId = gridFsTemplate.store(file.getInputStream(), fileName, file.getContentType());
 
@@ -68,11 +68,11 @@ public class FileServiceImpl implements FileService {
         if (!fileOpt.isPresent() || !fileOpt.get().getUserId().equals(userId)) {
             throw new IllegalArgumentException("文件不存在: " + fileId);
         }
-        
+
         // 文件存在，执行删除操作
         // 从GridFS删除文件
         gridFsTemplate.delete(new Query(Criteria.where("_id").is(fileId)));
-        
+
         // 从MongoDB删除文件元数据
         fileRepository.deleteByUserIdAndId(userId, fileId);
     }
@@ -104,17 +104,16 @@ public class FileServiceImpl implements FileService {
         Optional<File> fileOpt = Optional.ofNullable(fileRepository.findById(fileId).orElse(null));
         if (fileOpt.isPresent() && fileOpt.get().getUserId().equals(userId)) {
             // 从GridFS获取文件内容
-            GridFSFile gridFsFile = 
-                gridFsTemplate.findOne(new Query(Criteria.where("_id").is(fileId)));
-                
+            GridFSFile gridFsFile = gridFsTemplate.findOne(new Query(Criteria.where("_id").is(fileId)));
+
             if (gridFsFile != null) {
                 try {
-                    // 使用GridFSFile的id直接获取文件内容，而不是通过文件名
+                    // 使用GridFSFile的id直接获取文件内容
                     ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
                     gridFsTemplate.getResource(gridFsFile).getInputStream().transferTo(outputStream);
                     return outputStream.toByteArray();
                 } catch (IOException e) {
-                    throw new RuntimeException("无法读取文件内容", e);
+                    throw new RuntimeException("无法读取文件内容: " + e.getMessage(), e);
                 }
             }
         }

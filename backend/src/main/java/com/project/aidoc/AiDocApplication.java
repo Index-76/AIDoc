@@ -8,10 +8,12 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.scheduling.annotation.EnableAsync;
 
 @SpringBootApplication
 @MapperScan("com.project.aidoc.mapper")
 @EnableConfigurationProperties({ApiProperties.class})
+@EnableAsync
 public class AiDocApplication {
 
     public static void main(String[] args) {
@@ -21,7 +23,7 @@ public class AiDocApplication {
     @Bean
     public CommandLineRunner commandLineRunner(SystemConfigManager systemConfigManager) {
         return args -> {
-            // 移除初始化文件配置的逻辑，因为我们现在使用MongoDB存储配置
+            
         };
     }
 
