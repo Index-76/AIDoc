@@ -64,29 +64,68 @@ class FileSectionState extends State<FileSection> {
 
     try {
       final result = await _filesFuture;
-      bool hasFiles =
-          result['code'] == 200 && (result['data'] as List).isNotEmpty;
-
-      if (!hasFiles) {
+      
+      // 检查API响应是否成功
+      if (result['code'] != 200) {
+        if (mounted) {
+          TooltipUtil.showTooltip(
+            '获取文件列表失败: ${result['msg'] ?? result['message'] ?? '未知错误'}',
+            TooltipPosition.fileAreaCenter,
+          );
+        }
         return;
       }
 
-      final filesData = result['data'] as List;
+      // 检查是否有文件数据
+      final data = result['data'];
+      if (data is! List || data.isEmpty) {
+        if (mounted) {
+          // 根据区域类型显示不同的提示
+          if (widget.title == '结果') {
+            TooltipUtil.showTooltip(
+              '无可下载文件',
+              TooltipPosition.fileAreaCenter,
+            );
+          } else {
+            TooltipUtil.showTooltip(
+              '当前区域暂无文件',
+              TooltipPosition.fileAreaCenter,
+            );
+          }
+        }
+        return;
+      }
+
+      final filesData = data;
       final files = filesData.map((item) => FileInfo.fromJson(item)).toList();
 
-      // 根据当前区域过滤文件，只有结果区才显示所有文件，其他区域只显示当前区域的文件
+      // 根据当前区域过滤文件
       List<FileInfo> filteredFiles;
       if (widget.title == '结果') {
-        // 结果区：不过滤，显示所有文件（但可以考虑只显示结果区文件）
-        filteredFiles = files;
+        // 结果区：只显示结果区的文件
+        filteredFiles = files.where((file) => file.section == 'result').toList();
       } else {
         // 其他区域：只显示当前区域的文件
         String sectionCode = _getSectionCodeFromTitle(widget.title);
-        filteredFiles =
-            files.where((file) => file.section == sectionCode).toList();
+        filteredFiles = files.where((file) => file.section == sectionCode).toList();
       }
 
+      // 检查过滤后的文件是否为空
       if (filteredFiles.isEmpty) {
+        if (mounted) {
+          // 根据区域类型显示不同的提示
+          if (widget.title == '结果') {
+            TooltipUtil.showTooltip(
+              '无可下载文件',
+              TooltipPosition.fileAreaCenter,
+            );
+          } else {
+            TooltipUtil.showTooltip(
+              '当前区域暂无文件',
+              TooltipPosition.fileAreaCenter,
+            );
+          }
+        }
         return;
       }
 
@@ -179,7 +218,7 @@ class FileSectionState extends State<FileSection> {
                             }
                           });
                         },
-                        title: Text(file.fileName), // 使用fileName替代name
+                        title: Text(file.originalName),
                         secondary: Icon(
                           Icons.description,
                         ),
@@ -270,7 +309,6 @@ class FileSectionState extends State<FileSection> {
             ),
             child: Row(
               children: [
-                // 修改区域标题显示方式，处理文字过长问题
                 Expanded(
                   child: Text(
                     widget.title,
@@ -505,7 +543,7 @@ class FileSectionState extends State<FileSection> {
     );
   }
 
-  // 新增：显示导入菜单（文件）
+  // 显示导入菜单（文件）
   void _showImportMenu(BuildContext context) {
     if (_isProcessing || _isLoading) return; // 防止在处理中或加载中时重复操作
 
@@ -739,7 +777,7 @@ class _FileItem extends StatefulWidget {
 }
 
 class _FileItemState extends State<_FileItem> {
-  bool _isHovered = false; // 添加悬停状态
+  bool _isHovered = false;
 
   @override
   Widget build(BuildContext context) {
@@ -748,11 +786,8 @@ class _FileItemState extends State<_FileItem> {
 
     return GestureDetector(
       onDoubleTap: widget.onDoubleTap,
-      onTap: () {
-        // 单击文件不产生视觉反馈
-      },
+      onTap: () {},
       onLongPress: () {
-        // 长按显示操作菜单
         _showContextMenu(context);
       },
       child: MouseRegion(
@@ -761,7 +796,7 @@ class _FileItemState extends State<_FileItem> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           decoration: BoxDecoration(
-            color: _isHovered ? Colors.grey[200] : null, // 悬停时变灰
+            color: _isHovered ? Colors.grey[200] : null,
             borderRadius: BorderRadius.circular(4.0),
           ),
           child: ListTile(
@@ -771,7 +806,7 @@ class _FileItemState extends State<_FileItem> {
               size: MediaQuery.of(context).size.width > 768 ? 20 : 18,
             ),
             title: Text(
-              widget.file.originalName, // 使用originalName替代fileName
+              widget.file.originalName,
               style: TextStyle(
                   fontSize: MediaQuery.of(context).size.width > 768 ? 14 : 12),
             ),
@@ -780,7 +815,7 @@ class _FileItemState extends State<_FileItem> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  '文件 • ${_formatFileSize(widget.file.size)}', // 仍使用size字段
+                  '文件 • ${_formatFileSize(widget.file.size)}',
                   style: TextStyle(
                       fontSize:
                           MediaQuery.of(context).size.width > 768 ? 12 : 10,
@@ -815,6 +850,9 @@ class _FileItemState extends State<_FileItem> {
                   case 'move_to_template':
                     widget.onMoveToSection('template');
                     break;
+                  case 'rename':
+                    _showRenameDialog(context);
+                    break;
                 }
               },
               itemBuilder: (context) => [
@@ -833,11 +871,17 @@ class _FileItemState extends State<_FileItem> {
                   ),
                 if (widget.currentSection != '模板')
                   const PopupMenuItem<String>(
-                    value: 'move_to_template', // 添加缺失的value参数
+                    value: 'move_to_template',
                     child: Text('移到模板区',
                         style: TextStyle(fontWeight: FontWeight.w300)),
                   ),
                 const PopupMenuDivider(),
+                // 添加重命名选项
+                const PopupMenuItem<String>(
+                  value: 'rename',
+                  child: Text('重命名',
+                      style: TextStyle(fontWeight: FontWeight.w300)),
+                ),
                 // 统一删除操作，不管文件在哪个区域
                 const PopupMenuItem<String>(
                   value: 'delete',
@@ -885,6 +929,10 @@ class _FileItemState extends State<_FileItem> {
           ),
         const PopupMenuDivider(),
         const PopupMenuItem<String>(
+          value: 'rename',
+          child: Text('重命名'),
+        ),
+        const PopupMenuItem<String>(
           value: 'delete',
           child: Text('删除'),
         ),
@@ -910,8 +958,125 @@ class _FileItemState extends State<_FileItem> {
           case 'move_to_result':
             widget.onMoveToSection('result');
             break;
+          case 'rename':
+            _showRenameDialog(context);
+            break;
         }
       }
     });
+  }
+
+  void _showRenameDialog(BuildContext context) {
+    // 分离文件名和拓展名
+    String fileNameWithoutExtension = widget.file.originalName;
+    String fileExtension = '';
+    
+    int lastDotIndex = widget.file.originalName.lastIndexOf('.');
+    if (lastDotIndex != -1) {
+      fileNameWithoutExtension = widget.file.originalName.substring(0, lastDotIndex);
+      fileExtension = widget.file.originalName.substring(lastDotIndex);
+    }
+    
+    TextEditingController _nameController = TextEditingController(text: fileNameWithoutExtension);
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('重命名文件'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: '文件名',
+                  hintText: '请输入新的文件名',
+                ),
+                autofocus: true,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '拓展名: $fileExtension',
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () async {
+                String newFileName = _nameController.text.trim();
+                if (newFileName.isEmpty) {
+                  // 显示错误提示
+                  if (mounted) {
+                    TooltipUtil.showTooltip(
+                      '文件名不能为空',
+                      TooltipPosition.fileAreaCenter,
+                    );
+                  }
+                  return;
+                }
+                
+                // 关闭弹窗
+                Navigator.of(context).pop();
+                
+                // 如果文件名未改变，直接返回
+                if (newFileName == fileNameWithoutExtension) {
+                  return;
+                }
+                
+                // 合并文件名和拓展名
+                String newName = newFileName + fileExtension;
+                
+                // 调用API重命名文件
+                try {
+                  final result = await ApiService.renameFile(widget.file.id, newName);
+                  
+                  if (result['code'] == 200) {
+                    // 重命名成功
+                    if (mounted) {
+                      // 刷新文件列表
+                      widget.onRefresh();
+                      // 显示成功提示
+                      TooltipUtil.showTooltip(
+                        '文件重命名成功',
+                        TooltipPosition.fileAreaCenter,
+                      );
+                    }
+                  } else {
+                    // 重命名失败
+                    if (mounted) {
+                      TooltipUtil.showTooltip(
+                        '重命名失败: ${result['message'] ?? '未知错误'}',
+                        TooltipPosition.fileAreaCenter,
+                      );
+                    }
+                  }
+                } catch (e) {
+                  // 网络请求异常
+                  if (mounted) {
+                    TooltipUtil.showTooltip(
+                      '重命名失败: $e',
+                      TooltipPosition.fileAreaCenter,
+                    );
+                  }
+                }
+              },
+              child: const Text('确认'),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
