@@ -62,7 +62,7 @@ public class SseService {
      * 发送工具开始执行消息
      */
     public void sendToolBeginMessage(String sessionId, int toolCode) {
-        sendMessage(sessionId, SseEventType.TOOL_BEGIN.getEventType(), toolCode + "b");
+        sendMessage(sessionId, SseEventType.TOOL_BEGIN.getEventType(), toolCode);
     }
 
     /**

@@ -94,18 +94,33 @@ public class AiDecisionService {
             return false;
         }
 
-        String lowerMessage = message.toLowerCase();
+        String lowerMessage = message.toLowerCase().trim();
 
-        // 疑问词
-        String[] questionWords = { "?", "？", "什么", "怎么", "为什么", "哪里", "何时", "谁" };
-        // 否定词
-        String[] negationWords = { "不", "别", "不要", "不用", "没有", "无", "非" };
+        // 先检查是否包含工具相关关键词，如果有则不视为疑问句
+        if (lowerMessage.contains("查看目录") || 
+            lowerMessage.contains("目录查看") || 
+            lowerMessage.contains("查看文件") ||
+            lowerMessage.contains("文件列表")) {
+            return false; // 包含工具关键词，不是疑问句
+        }
 
-        for (String word : questionWords) {
-            if (lowerMessage.contains(word)) {
+        // 疑问词 - 更严格的检测
+        String[] questionPatterns = { 
+            "\\?$",      // 以?结尾
+            "什么\\s*$",  // 以"什么"结尾（后面可能有空格）
+            "怎么\\s*$",  // 以"怎么"结尾
+            "为什么\\s*$", // 以"为什么"结尾
+            "\\?\\s*$"   // 以？结尾
+        };
+        
+        for (String pattern : questionPatterns) {
+            if (lowerMessage.matches(".*" + pattern)) {
                 return true;
             }
         }
+
+        // 否定词
+        String[] negationWords = { "不", "别", "不要", "不用", "没有", "无", "非" };
 
         for (String word : negationWords) {
             if (lowerMessage.contains(word)) {

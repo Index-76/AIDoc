@@ -16,12 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -114,7 +109,17 @@ public class ChatServiceImpl implements ChatService {
             String toolResult = "";
             // 如果需要使用工具，则执行工具
             if (toolCode > 0 && toolExecutionService.isToolAvailable(toolCode)) {
-                toolResult = toolExecutionService.executeTool(toolCode, message, sessionId);
+                toolResult = toolExecutionService.executeTool(userId, toolCode, message, sessionId);
+                
+                // 对于目录查看工具，直接返回结果而不经过AI处理
+                if (toolCode == 1) { // DIRECTORY_VIEW
+                    // 保存工具结果作为AI消息
+                    saveMessage(userId, sessionId, toolResult, "AI");
+                    
+                    // 发送SSE通知：AI回复完成
+                    sseService.sendAiReplyFinishMessage(sessionId, "success");
+                    return;
+                }
             }
 
             // 将工具结果和原始用户消息一起交给对话AI
@@ -148,15 +153,27 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public Set<String> getAllSessionIdsByUserId(Long userId) {
-
+        // 获取用户的所有消息，按时间升序排列
         List<ChatMessage> allMessages = chatMessageRepository.findByUserIdOrderByTimestampAsc(userId);
 
-        Set<String> sessionIds = allMessages.stream()
-                .map(ChatMessage::getSessionId)
-                .filter(sessionId -> sessionId != null && !sessionId.isEmpty())
-                .collect(Collectors.toSet());
+        // 使用 LinkedHashMap 保持插入顺序，按session首次出现的时间排序
+        Map<String, LocalDateTime> sessionFirstSeen = new LinkedHashMap<>();
+        
+        for (ChatMessage message : allMessages) {
+            String sessionId = message.getSessionId();
+            if (sessionId != null && !sessionId.isEmpty()) {
+                // 如果session第一次出现，记录其首次出现时间
+                if (!sessionFirstSeen.containsKey(sessionId)) {
+                    sessionFirstSeen.put(sessionId, message.getTimestamp());
+                }
+            }
+        }
 
-        return sessionIds;
+        // 按首次出现时间排序（升序：先创建的在前）
+        return sessionFirstSeen.entrySet().stream()
+                .sorted(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toCollection(() -> new LinkedHashSet<>()));
     }
 
     @Override
@@ -202,7 +219,8 @@ public class ChatServiceImpl implements ChatService {
                     "3. 格式转换 - 转换文件格式\n" +
                     "4. 智能填表 - 自动填写表格\n" +
                     "5. 智能修改 - 智能编辑文档\n" +
-                    "当用户需要使用这些功能时，请在回复中明确提及相应的工具名称。");
+                    "当用户需要使用这些功能时，请严格按照工具执行结果的格式进行回复，不要重新组织语言。\n" +
+                    "特别是目录查看工具的结果已经是标准格式，请直接使用，不要做任何修改或总结。");
             messages.add(systemMsg);
 
             // 获取当前会话的历史记录（限制最近的15条消息）

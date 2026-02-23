@@ -72,7 +72,13 @@ public enum ToolType {
 
         String lowerKeyword = keyword.toLowerCase();
 
-        if (lowerKeyword.contains("查看目录")) {
+        // 目录查看关键词 - 扩展更多表达方式
+        if (lowerKeyword.contains("查看目录") || 
+            lowerKeyword.contains("目录查看") || 
+            lowerKeyword.contains("目录结构") || 
+            lowerKeyword.contains("文件列表") ||
+            lowerKeyword.contains("查看文件") ||
+            lowerKeyword.contains("文件目录")) {
             return DIRECTORY_VIEW;
         } else if (lowerKeyword.contains("总结") || lowerKeyword.contains("概括") || lowerKeyword.contains("摘要")) {
             return CONTENT_SUMMARY;

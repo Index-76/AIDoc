@@ -2,9 +2,13 @@ package com.project.aidoc.service;
 
 import com.project.aidoc.common.enums.ToolType;
 import com.project.aidoc.common.tools.*;
+import com.project.aidoc.entity.File;
+import com.project.aidoc.service.FileService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -13,15 +17,34 @@ import java.util.Map;
 @Slf4j
 @Service
 public class ToolExecutionService {
+    
+    @Autowired
+    private DirectoryViewerTool directoryViewerTool;
+    
+    @Autowired
+    private ContentSummarizerTool contentSummarizerTool;
+    
+    @Autowired
+    private FormatConverterTool formatConverterTool;
+    
+    @Autowired
+    private SmartFormFillerTool smartFormFillerTool;
+    
+    @Autowired
+    private SmartEditorTool smartEditorTool;
+
+    @Autowired
+    private FileService fileService;
 
     /**
      * 执行指定工具
+     * @param userId 用户ID
      * @param toolCode 工具代码
      * @param userMessage 用户消息
      * @param sessionId 会话ID
      * @return 工具执行结果
      */
-    public String executeTool(int toolCode, String userMessage, String sessionId) {
+    public String executeTool(Long userId, int toolCode, String userMessage, String sessionId) {
         ToolType toolType = ToolType.fromCode(toolCode);
         
         log.info("开始执行工具: {} ({})", toolType.getDescription(), toolCode);
@@ -31,34 +54,33 @@ public class ToolExecutionService {
             
             switch (toolType) {
                 case DIRECTORY_VIEW:
-                    // 对于目录查看，提取路径参数
-                    String path = extractPathFromMessage(userMessage);
-                    Map<String, Object> dirInfo = DirectoryViewerTool.viewDirectory(path);
-                    result = formatDirectoryResult(dirInfo);
+                    // 获取用户文件目录
+                    List<File> userFiles = fileService.getFilesByUserId(userId);
+                    result = directoryViewerTool.generateFixedFormatDirectoryOutput(userFiles);
                     break;
                 case CONTENT_SUMMARY:
                     String filePath = extractFilePathFromMessage(userMessage);
                     String summaryReq = extractSummaryRequirements(userMessage);
-                    Map<String, Object> summaryInfo = ContentSummarizerTool.summarizeContent(filePath, summaryReq);
+                    Map<String, Object> summaryInfo = contentSummarizerTool.summarizeContent(filePath, summaryReq);
                     result = formatSummaryResult(summaryInfo);
                     break;
                 case FORMAT_CONVERSION:
                     String convReq = extractConversionRequirements(userMessage);
                     String convPath = extractFilePathFromMessage(userMessage);
-                    Map<String, Object> convInfo = FormatConverterTool.convertFormat(convReq, convPath);
+                    Map<String, Object> convInfo = formatConverterTool.convertFormat(convReq, convPath);
                     result = formatConversionResult(convInfo);
                     break;
                 case SMART_FILL:
                     String templatePath = extractTemplatePathFromMessage(userMessage);
                     String fillReq = extractFillRequirements(userMessage);
                     String fileType = extractFileTypeFromMessage(userMessage);
-                    Map<String, Object> fillInfo = SmartFormFillerTool.fillForm(templatePath, fillReq, fileType);
+                    Map<String, Object> fillInfo = smartFormFillerTool.fillForm(templatePath, fillReq, fileType);
                     result = formatFillResult(fillInfo);
                     break;
                 case SMART_MODIFY:
                     String editPath = extractFilePathFromMessage(userMessage);
                     String editReq = extractEditRequirements(userMessage);
-                    Map<String, Object> editInfo = SmartEditorTool.editDocument(editPath, editReq);
+                    Map<String, Object> editInfo = smartEditorTool.editDocument(editPath, editReq);
                     result = formatEditResult(editInfo);
                     break;
                 default:
@@ -160,20 +182,13 @@ public class ToolExecutionService {
             return "无法获取目录信息";
         }
         
-        StringBuilder sb = new StringBuilder();
-        sb.append("目录信息:\n");
-        
-        Object files = dirInfo.get("files");
-        Object directories = dirInfo.get("directories");
-        
-        if (files != null) {
-            sb.append("文件数量: ").append(files).append("\n");
-        }
-        if (directories != null) {
-            sb.append("子目录数量: ").append(directories).append("\n");
+        // 直接返回目录查看工具生成的格式化结果
+        Object message = dirInfo.get("message");
+        if (message != null) {
+            return message.toString();
         }
         
-        return sb.toString();
+        return "目录查看完成";
     }
 
     /**
