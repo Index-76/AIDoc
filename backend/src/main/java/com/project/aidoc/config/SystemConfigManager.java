@@ -34,4 +34,27 @@ public class SystemConfigManager {
     public UserConfig createDefaultUserConfig(Long userId) {
         return userConfigService.createDefaultUserConfig(userId);
     }
+    
+    /**
+     * 获取决策AI API地址
+     */
+    public String getDecisionAiApi() {
+        // 这里可以根据需要从配置中获取，暂时返回默认值
+        return "https://api.siliconflow.cn/v1/chat/completions";
+    }
+    
+    /**
+     * 获取决策AI API密钥
+     */
+    public String getDecisionAiKey() {
+        // 这里可以从环境变量或配置文件中获取
+        return System.getenv("DECISION_AI_API_KEY");
+    }
+    
+    /**
+     * 获取决策AI模型名称
+     */
+    public String getDecisionAiModel() {
+        return "Qwen/Qwen3-7B-Instruct";
+    }
 }

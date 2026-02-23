@@ -1,10 +1,10 @@
 package com.project.aidoc.service.impl;
 
+import com.project.aidoc.common.dto.AiDecisionResult;
 import com.project.aidoc.entity.ChatMessage;
 import com.project.aidoc.entity.UserConfig;
 import com.project.aidoc.repository.ChatMessageRepository;
-import com.project.aidoc.service.ChatService;
-import com.project.aidoc.service.UserConfigService;
+import com.project.aidoc.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.http.HttpEntity;
@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 @Service
@@ -34,6 +35,15 @@ public class ChatServiceImpl implements ChatService {
 
     @Autowired
     private MongoTemplate mongoTemplate;
+
+    @Autowired
+    private AiDecisionService aiDecisionService;
+
+    @Autowired
+    private ToolExecutionService toolExecutionService;
+
+    @Autowired
+    private SseService sseService;
 
     private final RestTemplate restTemplate;
 
@@ -85,17 +95,42 @@ public class ChatServiceImpl implements ChatService {
     @Async
     public void processMessageAsync(Long userId, String sessionId, String message) {
         try {
-            // 保存用户消息
-            saveMessage(userId, sessionId, message, "USER");
+            // 保存用户消息到数据库
+            ChatMessage userMessage = saveMessage(userId, sessionId, message, "USER");
+            
+            // 执行AI决策
+            AiDecisionResult decisionResult = aiDecisionService.makeDecision(message, sessionId);
+            int toolCode = decisionResult.getToolCode();
+            
+            // 发送SSE通知：工具开始执行（只发送一次，根据实际工具代码）
+            if (toolCode > 0) {
+                // 需要调用工具，发送具体的工具代码
+                sseService.sendToolBeginMessage(sessionId, toolCode);
+            } else {
+                // 不需要调用工具，发送0表示AI正在思考
+                sseService.sendToolBeginMessage(sessionId, 0);
+            }
 
-            // 使用AI服务获取响应
-            String aiResponse = callAIService(userId, sessionId, message);
+            String toolResult = "";
+            // 如果需要使用工具，则执行工具
+            if (toolCode > 0 && toolExecutionService.isToolAvailable(toolCode)) {
+                toolResult = toolExecutionService.executeTool(toolCode, message, sessionId);
+            }
+
+            // 将工具结果和原始用户消息一起交给对话AI
+            String aiResponse = callAIServiceWithTools(userId, sessionId, message, toolResult);
 
             // 保存AI消息
             saveMessage(userId, sessionId, aiResponse, "AI");
+            
+            // 发送SSE通知：AI回复完成
+            sseService.sendAiReplyFinishMessage(sessionId, "success");
+
         } catch (Exception e) {
-            // 记录异步处理错误，但不影响主流程
+            // 记录异步处理错误
             e.printStackTrace();
+            // 发送错误通知
+            sseService.sendErrorMessage(sessionId, "处理消息时发生错误: " + e.getMessage());
         }
     }
 
@@ -138,12 +173,14 @@ public class ChatServiceImpl implements ChatService {
         chatMessageRepository.deleteByUserIdAndSessionId(userId, sessionId);
     }
 
-    private String callAIService(Long userId, String sessionId, String message) {
+    /**
+     * 调用AI服务（带工具结果）
+     */
+    private String callAIServiceWithTools(Long userId, String sessionId, String userMessage, String toolResult) {
         // 获取用户的配置
         UserConfig userConfig = userConfigService.getUserConfig(userId);
         if (userConfig == null || userConfig.getSiliconFlowApiKey() == null ||
                 userConfig.getSiliconFlowApiKey().isEmpty()) {
-            // 如果没有配置API密钥，返回提示信息
             return "请先配置硅基流动API密钥";
         }
 
@@ -168,7 +205,7 @@ public class ChatServiceImpl implements ChatService {
                     "当用户需要使用这些功能时，请在回复中明确提及相应的工具名称。");
             messages.add(systemMsg);
 
-            // 获取当前会话的历史记录（限制最近的15条消息以避免超出token限制）
+            // 获取当前会话的历史记录（限制最近的15条消息）
             List<ChatMessage> history = chatMessageRepository.findByUserIdAndSessionIdOrderByTimestampAsc(userId,
                     sessionId);
 
@@ -177,7 +214,7 @@ public class ChatServiceImpl implements ChatService {
                 history = history.subList(Math.max(0, history.size() - 15), history.size());
             }
 
-            // 添加历史对话记录到消息中（排除当前这条用户消息）
+            // 添加历史对话记录到消息中
             for (ChatMessage chatMessage : history) {
                 Map<String, String> historyMsg = new HashMap<>();
                 if ("USER".equals(chatMessage.getSenderType())) {
@@ -191,10 +228,17 @@ public class ChatServiceImpl implements ChatService {
                 }
             }
 
-            // 添加当前用户消息
+            // 添加当前用户消息和工具结果
+            StringBuilder combinedMessage = new StringBuilder();
+            combinedMessage.append("用户请求: ").append(userMessage);
+            
+            if (toolResult != null && !toolResult.isEmpty()) {
+                combinedMessage.append("\n\n工具执行结果: ").append(toolResult);
+            }
+
             Map<String, String> userMsg = new HashMap<>();
             userMsg.put("role", "user");
-            userMsg.put("content", message);
+            userMsg.put("content", combinedMessage.toString());
             messages.add(userMsg);
 
             // 构建请求体
@@ -205,7 +249,6 @@ public class ChatServiceImpl implements ChatService {
             requestBody.put("temperature", 0.7);
 
             // 发送请求到硅基流动API
-            RestTemplate restTemplate = new RestTemplate();
             HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestBody, headers);
 
             ResponseEntity<Map> response = restTemplate.postForEntity(
@@ -228,5 +271,12 @@ public class ChatServiceImpl implements ChatService {
             e.printStackTrace();
             return "抱歉，处理您的请求时出现错误：" + e.getMessage();
         }
+    }
+
+    /**
+     * 原有的AI服务调用方法（保持兼容性）
+     */
+    private String callAIService(Long userId, String sessionId, String message) {
+        return callAIServiceWithTools(userId, sessionId, message, "");
     }
 }

@@ -56,10 +56,14 @@ public class ChatController {
             return Result.error(401, "用户未登录");
         }
 
+        if (sessionId == null || sessionId.trim().isEmpty()) {
+            return Result.error(400, "会话ID不能为空");
+        }
+
         Long userId = Long.parseLong(StpUtil.getLoginIdAsString());
 
         try {
-            chatService.deleteSessionBySessionId(userId, sessionId);
+            chatService.deleteSessionBySessionId(userId, sessionId.trim());
             return Result.success("会话删除成功");
         } catch (IllegalArgumentException e) {
             return Result.error(400, e.getMessage());
