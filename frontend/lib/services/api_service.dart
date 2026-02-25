@@ -970,6 +970,92 @@ class ApiService {
     }
   }
 
+  /// 建立SSE连接，返回原始行流
+  static Future<Stream<String>?> connectSSE(String sessionId) async {
+    try {
+      debugPrint('🚀 开始SSE连接，会话ID: $sessionId');
+      final baseUrl = ServerConfig.baseUrl;
+      final connectUrl = '$baseUrl/api/v1/sse/connect/$sessionId';
+
+      final request = http.Request('GET', Uri.parse(connectUrl));
+      request.headers['Authorization'] =
+          'Bearer ${AuthConfig.getUserToken() ?? ''}';
+      request.headers['Accept'] = 'text/event-stream';
+      request.headers['Cache-Control'] = 'no-cache';
+
+      final response = await request.send();
+      debugPrint('📡 SSE响应状态码: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final stream = response.stream
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())
+            .asBroadcastStream();
+
+        // 可选内部监听，便于调试
+        stream.listen((line) {
+          debugPrint('🔊 内部行监听: $line');
+        });
+
+        debugPrint('✅ SSE连接建立成功，返回原始行流');
+        return stream;
+      } else {
+        debugPrint('❌ SSE连接失败: 状态码 ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('💥 SSE连接异常: $e');
+      return null;
+    }
+  }
+
+  /// SSE断开连接，返回是否成功
+  static Future<bool> disconnectSSE(String sessionId) async {
+    try {
+      final baseUrl = ServerConfig.baseUrl;
+      final disconnectUrl = '$baseUrl/api/v1/sse/disconnect/$sessionId';
+
+      final response = await http.post(
+        Uri.parse(disconnectUrl),
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'Authorization': 'Bearer ${AuthConfig.getUserToken() ?? ''}',
+        },
+      ).timeout(const Duration(seconds: 30));
+
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('SSE断开连接异常: $e');
+      return false;
+    }
+  }
+
+  /// 获取SSE连接数，返回整数，出错返回 -1
+  static Future<int> getSSEConnectionsCount() async {
+    try {
+      final baseUrl = ServerConfig.baseUrl;
+      final connectionsUrl = '$baseUrl/api/v1/sse/connections';
+
+      final response = await http.get(
+        Uri.parse(connectionsUrl),
+        headers: {
+          'Authorization': 'Bearer ${AuthConfig.getUserToken() ?? ''}',
+        },
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        // 根据文档，接口直接返回数字字符串，如 "1"
+        final body = response.body.trim();
+        return int.tryParse(body) ?? -1;
+      } else {
+        return -1;
+      }
+    } catch (e) {
+      debugPrint('获取SSE连接数异常: $e');
+      return -1;
+    }
+  }
+
   /// 验证用户token是否有效
   static Future<bool> validateToken() async {
     try {

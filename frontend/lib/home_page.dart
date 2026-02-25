@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:convert';
 import 'package:logger/logger.dart';
 import 'services/api_service.dart';
 import 'models/chat_message.dart';
@@ -127,9 +128,19 @@ class _MyHomePageState extends State<MyHomePage> {
 
   // 添加菜单加载状态变量
   bool _isLoadingMenu = false;
+  bool _isLoadingSessions = false; // 防止并发加载会话列表
 
   // 应用级别的初始化锁
   static bool _appLevelInitLock = false;
+
+  // SSE相关变量
+  String? _toolStatusText; // 当前工具提示文本
+  String? _lastToolName; // 记录最后一次使用的工具名称
+  Map<String, StreamSubscription<String>> _sseSubscriptions = {};
+  List<String> _sseConnectionOrder = []; // 按连接时间顺序存储会话ID，最早的在前面
+  bool _isSseConnected = false; // SSE连接状态
+
+  String? _pendingSwitchSessionId; // 当前正在处理的切换目标
 
   @override
   void initState() {
@@ -137,7 +148,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
     // 初始化各个区域的状态
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkAndReuseEmptyChat();
+      _smartInitializeChat(); // 使用初始化：优先复用最新空对话
     });
   }
 
@@ -155,6 +166,9 @@ class _MyHomePageState extends State<MyHomePage> {
         if (mounted) {
           setState(() {
             _messages.clear();
+            // 新增：重置 loading 状态
+            _isLoading = false;
+            _toolStatusText = null;
             // 添加消息到列表
             for (var msg in chatMessages) {
               String senderType = msg['senderType'];
@@ -167,8 +181,6 @@ class _MyHomePageState extends State<MyHomePage> {
               }
             }
           });
-
-          // 滚动到最新消息
           _scrollToBottom();
         }
         return true;
@@ -204,7 +216,10 @@ class _MyHomePageState extends State<MyHomePage> {
   // 创建新对话
   Future<void> _createNewChat() async {
     // 防止重复创建
-    if (_isCreatingChat) return;
+    if (_isCreatingChat) {
+      _logger.d('正在创建对话中，跳过重复创建');
+      return;
+    }
 
     // 检查当前会话是否有新内容，如果没有新内容则不创建
     if (_currentSessionId != null && _messages.isNotEmpty) {
@@ -240,14 +255,20 @@ class _MyHomePageState extends State<MyHomePage> {
             _messages.clear();
             _currentDocumentContent = '';
           });
-          // 加载新创建对话的历史
           await _loadChatHistoryForCurrentSession();
-          // 刷新对话历史
           await _loadChatSessions();
 
-          // ⭐️ 保存新创建的会话ID到SharedPreferences
-          final prefs = await SharedPreferences.getInstance();
+          // 连接新会话的 SSE
+          await _connectSSE(newSessionId);
+
+          // 保存当前会话ID到本地存储
+          SharedPreferences prefs = await SharedPreferences.getInstance();
           await prefs.setString('last_session_id', newSessionId);
+
+          // 显示创建新对话成功的提示
+          if (mounted) {
+            TooltipUtil.showTooltip('新对话已创建', TooltipPosition.windowCenter);
+          }
         }
       } else {
         _showErrorTooltip('创建新对话失败: ${response['msg'] ?? response['message']}');
@@ -265,6 +286,16 @@ class _MyHomePageState extends State<MyHomePage> {
 
   // 加载对话历史 - 统一的基础刷新方法
   Future<void> _loadChatSessions() async {
+    // 防止并发加载
+    if (_isLoadingSessions) {
+      _logger.d('会话列表正在加载中，跳过重复加载');
+      return;
+    }
+
+    setState(() {
+      _isLoadingSessions = true;
+    });
+
     try {
       final response = await ApiService.getChatSessions();
 
@@ -320,6 +351,12 @@ class _MyHomePageState extends State<MyHomePage> {
       }
     } catch (e) {
       _showErrorTooltip('获取对话历史时发生错误: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingSessions = false;
+        });
+      }
     }
   }
 
@@ -333,8 +370,13 @@ class _MyHomePageState extends State<MyHomePage> {
       return;
     }
 
+    _pendingSwitchSessionId = sessionId;
+
     try {
       final response = await ApiService.getChatHistoryBySession(sessionId);
+      // 如果已经被更新的切换覆盖，则忽略结果
+      if (_pendingSwitchSessionId != sessionId) return;
+
       if (response['code'] == 200) {
         List<dynamic> chatMessages = response['data'] ?? [];
 
@@ -355,6 +397,9 @@ class _MyHomePageState extends State<MyHomePage> {
             }
           });
 
+          // 连接新会话的 SSE
+          await _connectSSE(sessionId);
+
           // 在添加完消息后，滚动到底部显示最新消息
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (_scrollController.hasClients) {
@@ -371,16 +416,28 @@ class _MyHomePageState extends State<MyHomePage> {
             TooltipUtil.showTooltip('已切换到对话', TooltipPosition.windowCenter);
           }
 
-          // ⭐️ 保存当前会话ID到SharedPreferences
+          // 保存当前会话ID到SharedPreferences
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('last_session_id', sessionId);
         }
       } else {
-        _showErrorTooltip(
-            '获取对话历史失败: ${response['msg'] ?? response['message']}');
+        if (_pendingSwitchSessionId == sessionId) {
+          _showErrorTooltip(
+              '获取对话历史失败: ${response['msg'] ?? response['message']}');
+        }
       }
     } catch (e) {
-      _showErrorTooltip('获取对话历史时发生错误: $e');
+      if (_pendingSwitchSessionId == sessionId) {
+        _showErrorTooltip('获取对话历史时发生错误: $e');
+      }
+    } finally {
+      if (_pendingSwitchSessionId == sessionId) {
+        if (mounted) {
+          setState(() {
+            _pendingSwitchSessionId = null;
+          });
+        }
+      }
     }
   }
 
@@ -407,8 +464,8 @@ class _MyHomePageState extends State<MyHomePage> {
             '已删除最后一个对话，正在创建新对话...', TooltipPosition.windowCenter);
       }
     } else {
-      // 如果不是最后一个对话，切换到最近的对话（第一个对话）
-      String recentSessionId = _chatSessions[0]['id'];
+      // 如果不是最后一个对话，切换到最近的对话
+      String recentSessionId = _chatSessions.last['id'];
       _switchToChat(recentSessionId);
       if (mounted) {
         TooltipUtil.showTooltip(
@@ -454,6 +511,166 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
+  Future<void> _connectSSE(String sessionId) async {
+    // 如果已有该会话的连接，先取消（防止重复）
+    if (_sseSubscriptions.containsKey(sessionId)) {
+      await _sseSubscriptions[sessionId]!.cancel();
+      _sseSubscriptions.remove(sessionId);
+      _sseConnectionOrder.remove(sessionId);
+    }
+
+    if (!mounted) return;
+
+    final stream = await ApiService.connectSSE(sessionId);
+    if (stream == null) {
+      return;
+    }
+
+    final subscription = stream.listen(
+      (line) {
+        if (line.startsWith('data:')) {
+          final jsonStr = line.substring(5).trim();
+          try {
+            final event = jsonDecode(jsonStr) as Map<String, dynamic>;
+            _handleSseEvent(event);
+          } catch (e) {
+            // JSON解析失败时忽略
+          }
+        }
+      },
+      onError: (error) {
+        // 连接出错时从映射中移除该订阅
+        _sseSubscriptions.remove(sessionId);
+        _sseConnectionOrder.remove(sessionId);
+        if (_sseSubscriptions.isEmpty) {
+          _isSseConnected = false;
+        }
+      },
+      onDone: () {
+        // 连接关闭时从映射中移除
+        _sseSubscriptions.remove(sessionId);
+        _sseConnectionOrder.remove(sessionId);
+        if (_sseSubscriptions.isEmpty) {
+          _isSseConnected = false;
+        }
+      },
+    );
+
+    _sseSubscriptions[sessionId] = subscription;
+    _sseConnectionOrder.add(sessionId);
+    _isSseConnected = true;
+  }
+
+  Future<void> _disconnectSSE([String? sessionId]) async {
+    if (sessionId != null) {
+      // 断开指定会话
+      final subscription = _sseSubscriptions.remove(sessionId);
+      if (subscription != null) {
+        await subscription.cancel();
+        await ApiService.disconnectSSE(sessionId);
+      }
+      _sseConnectionOrder.remove(sessionId);
+    } else {
+      // 断开所有会话
+      for (var entry in _sseSubscriptions.entries) {
+        await entry.value.cancel();
+        await ApiService.disconnectSSE(entry.key);
+      }
+      _sseSubscriptions.clear();
+      _sseConnectionOrder.clear();
+    }
+
+    if (_sseSubscriptions.isEmpty) {
+      _isSseConnected = false;
+    }
+  }
+
+  void _handleSseEvent(Map<String, dynamic> event) {
+    final String eventType = event['eventType'];
+    final String sessionId = event['sessionId'];
+    if (sessionId != _currentSessionId) return;
+
+    switch (eventType) {
+      case 'tool_begin':
+        _handleToolBegin(event);
+        break;
+      case 'ai_reply_finish':
+        _handleAiReplyFinish(event);
+        break;
+      default:
+        break;
+    }
+  }
+
+  void _handleToolBegin(Map<String, dynamic> event) {
+    final int toolValue = event['data'] as int;
+    String toolMessage;
+    String toolName;
+    if (toolValue == 0) {
+      toolMessage = '等待回复中...';
+      toolName = '等待';
+    } else {
+      const toolNames = {
+        1: '目录查看',
+        2: '内容总结',
+        3: '格式转换',
+        4: '智能填表',
+        5: '智能修改',
+      };
+      toolName = toolNames[toolValue] ?? '未知工具';
+      toolMessage = '正在使用 $toolName 工具...';
+    }
+    if (mounted) {
+      setState(() {
+        _toolStatusText = toolMessage;
+        _lastToolName = toolName;
+      });
+    }
+  }
+
+  void _handleAiReplyFinish(Map<String, dynamic> event) async {
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        _toolStatusText = null;
+      });
+
+      // 添加 system 消息
+      if (_lastToolName != null && _lastToolName != '等待') {
+        final systemMessage = ChatMessage.system('已执行 $_lastToolName 操作');
+        setState(() {
+          _messages.add(systemMessage);
+          _lastToolName = null;
+        });
+        _scrollToBottom();
+      }
+    }
+    await _loadLatestAiMessage();
+  }
+
+  Future<void> _loadLatestAiMessage() async {
+    if (_currentSessionId == null) return;
+    try {
+      final response =
+          await ApiService.getChatHistoryBySession(_currentSessionId!);
+      if (response['code'] == 200) {
+        final List<dynamic> chatMessages = response['data'] ?? [];
+        final lastAiMsg = chatMessages.lastWhere(
+          (msg) => msg['senderType'] == 'AI',
+          orElse: () => null,
+        );
+        if (lastAiMsg != null && mounted) {
+          setState(() {
+            _messages.add(ChatMessage.ai(lastAiMsg['content']));
+          });
+          _scrollToBottom();
+        }
+      }
+    } catch (e) {
+      // 加载失败时忽略错误
+    }
+  }
+
   // 发送消息
   Future<void> _sendMessage(String text) async {
     if (text.isEmpty || _currentSessionId == null) {
@@ -462,69 +679,36 @@ class _MyHomePageState extends State<MyHomePage> {
     }
 
     _logger.d('开始发送消息: $text');
-    // 滚动到最新消息
     _scrollToBottom();
 
+    setState(() {
+      _messages.add(ChatMessage.user(text));
+      _textController.clear();
+      _isLoading = true;
+      _toolStatusText = '等待回复中...';
+    });
+
     try {
-      setState(() {
-        _messages.add(ChatMessage.user(text));
-        _textController.clear();
-        _isLoading = true;
-      });
-
-      // 直接调用后端API，让后端处理工具决策和AI响应
-      final response = await _callBackendAPI(text, _currentDocumentContent);
-
-      if (response != null) {
-        _logger.i('收到AI响应: $response');
-        setState(() {
-          _messages.add(ChatMessage.ai(response));
-        });
+      final response =
+          await ApiService.sendChatMessage(text, _currentSessionId);
+      if (response['code'] != 200) {
+        throw Exception('发送消息失败: ${response['msg']}');
       }
     } catch (e) {
       _logger.e('发送消息时发生异常: $e');
-      // 添加错误消息到聊天界面
       if (mounted) {
         setState(() {
-          _messages.add(ChatMessage.ai('处理您的请求时发生了错误，请稍后重试。'));
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
+          _messages.add(ChatMessage.ai('消息发送失败，请重试。'));
           _isLoading = false;
+          _toolStatusText = null;
         });
-      }
-      // AI回复后再次滚动到底部
-      _scrollToBottom();
-
-      // 发送消息后焦点回到输入框
-      if (mounted) {
-        FocusScope.of(context).requestFocus(_textFieldFocusNode);
+        _scrollToBottom();
       }
     }
-  }
 
-  Future<String?> _callBackendAPI(String question, String documentText) async {
-    _logger.d('调用后端API: $question');
-    try {
-      final response =
-          await ApiService.sendChatMessage(question, _currentSessionId);
-
-      if (response['code'] == 200) {
-        final aiResponse = response['data'] != null
-            ? response['data']
-            : (response['msg'] ?? response['message']);
-
-        _logger.i('API调用成功');
-        return aiResponse ?? '未收到后端响应';
-      } else {
-        _logger.e('API调用失败: ${response['msg'] ?? response['message']}');
-        return '后端服务暂时不可用，请稍后重试: ${response['msg'] ?? response['message']}';
-      }
-    } catch (e) {
-      _logger.e('API调用异常: $e');
-      return '连接后端服务时发生错误';
+    // 焦点回到输入框
+    if (mounted) {
+      FocusScope.of(context).requestFocus(_textFieldFocusNode);
     }
   }
 
@@ -701,7 +885,7 @@ class _MyHomePageState extends State<MyHomePage> {
     _switchToChat(sessionId);
   }
 
-  // 重置初始化状态（用于调试）
+  // 重置初始化状态
   void _resetInitializationState() {
     setState(() {
       _isInitializing = false;
@@ -715,6 +899,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   void dispose() {
+    _disconnectSSE();
     _scrollController.dispose();
     _textController.dispose();
     _textFieldFocusNode.dispose();
@@ -739,7 +924,6 @@ class _MyHomePageState extends State<MyHomePage> {
             onPressed: _createNewChat,
             tooltip: '新建对话',
           ),
-          // 替换原来的 PopupMenuButton 为自定义 IconButton 实现延迟加载
           IconButton(
             icon: _isLoadingMenu
                 ? const SizedBox(
@@ -934,13 +1118,14 @@ class _MyHomePageState extends State<MyHomePage> {
                 width: 2.0,
               ),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                CircularProgressIndicator(),
-                SizedBox(width: 5),
+                const CircularProgressIndicator(),
+                const SizedBox(width: 10),
                 Text(
-                  'AI正在思考...',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16.0),
+                  _toolStatusText ?? 'AI正在思考...',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 16.0),
                 ),
               ],
             ),
@@ -1026,17 +1211,20 @@ class _MyHomePageState extends State<MyHomePage> {
               // 关闭下拉菜单
               Navigator.pop(context);
 
-              // 显示删除成功提示
-              if (mounted) {
-                TooltipUtil.showTooltip('对话已删除', TooltipPosition.windowCenter);
-              }
-
-              // 刷新对话列表
-              await _loadChatSessions();
+              // 断开该会话的 SSE 连接
+              await _disconnectSSE(sessionId);
 
               // 如果删除的是当前对话，则使用统一处理逻辑
               if (sessionId == _currentSessionId) {
                 await _handleDeleteCurrentChat();
+              } else {
+                // 非当前对话被删除，只需刷新提示
+                if (mounted) {
+                  TooltipUtil.showTooltip(
+                      '对话已删除', TooltipPosition.windowCenter);
+                }
+                // 刷新对话列表
+                await _loadChatSessions();
               }
             } else {
               _showErrorTooltip(
@@ -1097,6 +1285,9 @@ class _MyHomePageState extends State<MyHomePage> {
                           // 关闭对话框
                           Navigator.pop(context);
 
+                          // 断开该会话的 SSE 连接
+                          await _disconnectSSE(sessionId);
+
                           // 如果删除的是当前对话，则使用统一处理逻辑
                           if (sessionId == _currentSessionId) {
                             await _handleDeleteCurrentChat();
@@ -1141,7 +1332,88 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  // 检查并复用空对话
+  // 初始化：只检查最新对话是否为空，否则创建新对话
+  Future<void> _smartInitializeChat() async {
+    try {
+      // 加载对话列表
+      await _loadChatSessions();
+
+      if (_chatSessions.isEmpty) {
+        // 没有任何对话，直接创建新对话
+        await _createNewChat();
+        return;
+      }
+
+      // 取最后一个会话作为"最新的对话"
+      final latestSession = _chatSessions.last;
+      final latestSessionId = latestSession['id'];
+
+      // 获取该会话的历史记录，判断是否为空
+      final historyResponse =
+          await ApiService.getChatHistoryBySession(latestSessionId);
+      bool isEmptyChat = false;
+      if (historyResponse['code'] == 200) {
+        List<dynamic> chatHistory = historyResponse['data'] ?? [];
+        isEmptyChat = chatHistory.isEmpty ||
+            (chatHistory.length == 1 && chatHistory[0]['senderType'] != 'USER');
+      }
+
+      if (isEmptyChat) {
+        // 复用最新空对话
+        if (mounted) {
+          setState(() {
+            _currentSessionId = latestSessionId;
+            _messages.clear();
+            _currentDocumentContent = '';
+          });
+
+          await _disconnectSSE();
+          // 加载历史消息
+          await _loadChatHistoryForCurrentSession();
+          // 连接新会话的 SSE
+          await _connectSSE(latestSessionId);
+          // 保存到本地存储
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('last_session_id', latestSessionId);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              TooltipUtil.showTooltip('已复用最新空对话', TooltipPosition.windowCenter);
+            }
+          });
+        }
+      } else {
+        // 最新对话不为空，创建新对话
+        await _createNewChat();
+      }
+    } catch (e) {
+      _logger.e('智能初始化对话时发生错误: $e');
+      // 出错时回退到创建新对话
+      await _createNewChat();
+    }
+  }
+
+  // 检查并创建新对话
+  Future<void> _initializeNewChat() async {
+    try {
+      // 使用统一的刷新方法加载对话列表
+      await _loadChatSessions();
+
+      // 直接创建新对话
+      await _createNewChat();
+
+      if (mounted) {
+        TooltipUtil.showTooltip('新对话已创建', TooltipPosition.windowCenter);
+      }
+    } catch (e) {
+      _logger.e('初始化新对话时发生错误: $e');
+      // 如果创建新对话失败，尝试切换到现有对话
+      if (_chatSessions.isNotEmpty) {
+        _switchToChat(_chatSessions.first['id']);
+      }
+    }
+  }
+
+  // 检查并复用空对话（保留该方法但不再使用）
   Future<void> _checkAndReuseEmptyChat() async {
     try {
       // 使用统一的刷新方法
@@ -1272,7 +1544,7 @@ class _ChatSessionItemWidgetState extends State<_ChatSessionItemWidget> {
                             icon: Icon(Icons.close,
                                 size: 18, color: Colors.grey[700]),
                             onPressed: widget.onDelete,
-                            padding: EdgeInsets.zero, // 移除内边距
+                            padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(
                                 minWidth: 24, minHeight: 24), // 最小约束
                           )
