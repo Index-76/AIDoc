@@ -15,9 +15,28 @@ class ChatMessageItem extends StatelessWidget {
       return _buildToolCallMessage(context);
     } else if (message.isUser) {
       return _buildUserMessage(context);
+    } else if (message.isSystem) {
+      return _buildSystemMessage(context);
     } else {
       return _buildAIMessage(context);
     }
+  }
+
+  Widget _buildSystemMessage(BuildContext context) {
+    return Container(
+      alignment: Alignment.center,
+      color: Colors.amber.shade50,  // 淡黄色背景
+      padding: const EdgeInsets.all(8),
+      margin: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Text(
+        message.text,
+        style: TextStyle(
+          fontSize: MediaQuery.of(context).size.width > 768 ? 14.0 : 12.0,
+          color: Colors.orange,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
   }
 
   Widget _buildToolCallMessage(BuildContext context) {

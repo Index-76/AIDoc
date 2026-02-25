@@ -1,6 +1,7 @@
 enum ChatSender {
   user,
   ai,
+  system, // 添加系统消息类型
 }
 
 class ChatMessage {
@@ -18,5 +19,10 @@ class ChatMessage {
     return ChatMessage(text, ChatSender.ai);
   }
 
+  factory ChatMessage.system(String text) {
+    return ChatMessage(text, ChatSender.system, isToolCall: true);
+  }
+
   bool get isUser => sender == ChatSender.user;
+  bool get isSystem => sender == ChatSender.system; // 添加系统消息判断
 }
