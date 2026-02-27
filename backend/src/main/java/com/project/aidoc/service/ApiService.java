@@ -27,13 +27,31 @@ public class ApiService {
 
     /**
      * 调用外部API
+     * 
      * @param apiUrl API地址
      * @param apiKey API密钥
      * @param prompt 提示词
+     * @param model  模型名称
      * @return API响应结果
      */
-    public String callExternalApi(String apiUrl, String apiKey, String prompt) {
+    public String callExternalApi(String apiUrl, String apiKey, String prompt, String model) {
         try {
+            // 输入验证
+            if (apiUrl == null || apiUrl.isEmpty()) {
+                log.error("API URL is null or empty");
+                return "";
+            }
+
+            if (apiKey == null || apiKey.isEmpty()) {
+                log.error("API key is null or empty");
+                return "";
+            }
+
+            if (prompt == null || prompt.isEmpty()) {
+                log.error("Prompt is null or empty");
+                return "";
+            }
+
             // 准备请求头
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -46,7 +64,7 @@ public class ApiService {
 
             // 构建请求体
             Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("model", "Qwen/Qwen3-7B-Instruct"); // 默认模型
+            requestBody.put("model", model);
             requestBody.put("messages", List.of(message));
             requestBody.put("max_tokens", 500);
             requestBody.put("temperature", 0.7);

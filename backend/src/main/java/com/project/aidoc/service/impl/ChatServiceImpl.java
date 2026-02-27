@@ -5,6 +5,7 @@ import com.project.aidoc.entity.ChatMessage;
 import com.project.aidoc.entity.UserConfig;
 import com.project.aidoc.repository.ChatMessageRepository;
 import com.project.aidoc.service.*;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.http.HttpEntity;
@@ -19,6 +20,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class ChatServiceImpl implements ChatService {
 
@@ -92,11 +94,11 @@ public class ChatServiceImpl implements ChatService {
         try {
             // 保存用户消息到数据库
             ChatMessage userMessage = saveMessage(userId, sessionId, message, "USER");
-            
+
             // 执行AI决策
-            AiDecisionResult decisionResult = aiDecisionService.makeDecision(message, sessionId);
+            AiDecisionResult decisionResult = aiDecisionService.makeDecision(userId, message, sessionId);
             int toolCode = decisionResult.getToolCode();
-            
+
             // 发送SSE通知：工具开始执行（只发送一次，根据实际工具代码）
             if (toolCode > 0) {
                 // 需要调用工具，发送具体的工具代码
@@ -110,30 +112,29 @@ public class ChatServiceImpl implements ChatService {
             // 如果需要使用工具，则执行工具
             if (toolCode > 0 && toolExecutionService.isToolAvailable(toolCode)) {
                 toolResult = toolExecutionService.executeTool(userId, toolCode, message, sessionId);
-                
+
                 // 对于目录查看工具，直接返回结果而不经过AI处理
                 if (toolCode == 1) { // DIRECTORY_VIEW
                     // 保存工具结果作为AI消息
                     saveMessage(userId, sessionId, toolResult, "AI");
-                    
+
                     // 发送SSE通知：AI回复完成
                     sseService.sendAiReplyFinishMessage(sessionId, "success");
                     return;
                 }
             }
 
-            // 将工具结果和原始用户消息一起交给对话AI
+            // 调用AI服务生成回复（包括工具结果）
             String aiResponse = callAIServiceWithTools(userId, sessionId, message, toolResult);
 
-            // 保存AI消息
+            // 保存AI回复
             saveMessage(userId, sessionId, aiResponse, "AI");
-            
+
             // 发送SSE通知：AI回复完成
             sseService.sendAiReplyFinishMessage(sessionId, "success");
 
         } catch (Exception e) {
-            // 记录异步处理错误
-            e.printStackTrace();
+            log.error("处理消息时发生错误", e);
             // 发送错误通知
             sseService.sendErrorMessage(sessionId, "处理消息时发生错误: " + e.getMessage());
         }
@@ -158,7 +159,7 @@ public class ChatServiceImpl implements ChatService {
 
         // 使用 LinkedHashMap 保持插入顺序，按session首次出现的时间排序
         Map<String, LocalDateTime> sessionFirstSeen = new LinkedHashMap<>();
-        
+
         for (ChatMessage message : allMessages) {
             String sessionId = message.getSessionId();
             if (sessionId != null && !sessionId.isEmpty()) {
@@ -249,7 +250,7 @@ public class ChatServiceImpl implements ChatService {
             // 添加当前用户消息和工具结果
             StringBuilder combinedMessage = new StringBuilder();
             combinedMessage.append("用户请求: ").append(userMessage);
-            
+
             if (toolResult != null && !toolResult.isEmpty()) {
                 combinedMessage.append("\n\n工具执行结果: ").append(toolResult);
             }

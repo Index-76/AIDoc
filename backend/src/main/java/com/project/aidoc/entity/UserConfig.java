@@ -12,17 +12,17 @@ import java.time.LocalDateTime;
 public class UserConfig {
     @Id
     private String id;
-    
+
     @Indexed
     private Long userId; // 所属用户ID
-    
+
     // 硅基流动API配置
     private String siliconFlowApiKey;
     private String siliconFlowBaseUrl;
     private String chatModelName;
     private String decisionModelName;
     private String analysisModelName;
-    
+
     @Indexed
     private LocalDateTime createTime;
     @Indexed

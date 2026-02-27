@@ -36,13 +36,13 @@ public class UserConfigServiceImpl implements UserConfigService {
     public UserConfig createDefaultUserConfig(Long userId) {
         UserConfig defaultConfig = new UserConfig();
         defaultConfig.setUserId(userId);
-        
+
         // 设置默认值
         defaultConfig.setSiliconFlowBaseUrl("https://api.siliconflow.cn/v1/chat/completions");
         defaultConfig.setChatModelName("deepseek-ai/DeepSeek-V3.2");
         defaultConfig.setDecisionModelName("Qwen/Qwen2.5-7B-Instruct");
         defaultConfig.setAnalysisModelName("deepseek-ai/DeepSeek-V3.2");
-        
+
         return userConfigRepository.save(defaultConfig);
     }
 }
