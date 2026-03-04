@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * 目录查看工具类
@@ -20,13 +21,18 @@ public class DirectoryViewerTool {
     
     /**
      * 查看指定用户的所有文件目录情况
-     * @param userId 用户ID
-     * @return 包含目录信息的Map
+     * @param userId 用户 ID
+     * @return 包含目录信息的 Map
      */
     public Map<String, Object> viewUserDirectory(Long userId) {
         try {
             // 获取用户的所有文件
             List<File> userFiles = fileService.getFilesByUserId(userId);
+            
+            // 过滤掉 temp 区域的文件
+            userFiles = userFiles.stream()
+                    .filter(file -> !"temp".equals(file.getSection()))
+                    .collect(Collectors.toList());
             
             // 按分区组织文件
             Map<String, List<File>> filesBySection = new HashMap<>();
@@ -45,7 +51,7 @@ public class DirectoryViewerTool {
             
         } catch (Exception e) {
             Map<String, Object> errorResult = new HashMap<>();
-            errorResult.put("message", "查看目录时发生错误: " + e.getMessage());
+            errorResult.put("message", "查看目录时发生错误：" + e.getMessage());
             return errorResult;
         }
     }
@@ -64,10 +70,19 @@ public class DirectoryViewerTool {
     }
     
     /**
-     * 为AI准备目录信息
+     * 为 AI 准备目录信息
      */
     public String prepareDirectoryInfoForAi(List<File> files) {
         if (files == null || files.isEmpty()) {
+            return "暂无文件";
+        }
+        
+        // 过滤掉 temp 区域的文件
+        files = files.stream()
+                .filter(file -> !"temp".equals(file.getSection()))
+                .collect(Collectors.toList());
+        
+        if (files.isEmpty()) {
             return "暂无文件";
         }
         
@@ -79,7 +94,7 @@ public class DirectoryViewerTool {
         }
         
         StringBuilder sb = new StringBuilder();
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy年MM月dd日");
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy 年 MM 月 dd 日");
         
         // 四个标准分区
         String[] standardSections = {"等待", "读取", "模板", "结果"};
