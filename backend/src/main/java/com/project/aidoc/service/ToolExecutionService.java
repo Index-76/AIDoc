@@ -126,22 +126,6 @@ public class ToolExecutionService {
     }
 
     /**
-     * 从用户消息中提取路径
-     */
-    private String extractPathFromMessage(String message) {
-        // 简单的路径提取逻辑
-        if (message.contains("目录") || message.contains("文件夹")) {
-            String[] parts = message.split("[\\s:：]+");
-            for (String part : parts) {
-                if (part.contains("/") || part.contains("\\")) {
-                    return part;
-                }
-            }
-        }
-        return "./"; // 默认当前目录
-    }
-
-    /**
      * 从用户消息中提取文件路径
      */
     private String extractFilePathFromMessage(String message) {
@@ -326,7 +310,7 @@ public class ToolExecutionService {
                 .collect(Collectors.groupingBy(File::getSection));
 
         // 输出各个区域的文件数量
-        String[] sections = { "read", "write", "template", "result" };
+        String[] sections = { "read", "wait", "template", "result" };
         boolean hasAnyFiles = false;
 
         for (String section : sections) {
@@ -389,7 +373,7 @@ public class ToolExecutionService {
      */
     private String batchSummarizeAllFiles(Long userId, String userMessage) {
         try {
-            // 1. 尝试从消息中提取目标区域（read/write/template/result）
+            // 1. 尝试从消息中提取目标区域（read/wait/template/result）
             String targetSection = extractSectionFromMessage(userMessage);
 
             // 2. 如果用户没有指定区域，默认只总结读取区（read）的文件
@@ -670,40 +654,27 @@ public class ToolExecutionService {
         String lowerMessage = message.toLowerCase();
 
         // === 读取区（read）===
-        if (lowerMessage.contains("读取区") || lowerMessage.contains("read") ||
-                lowerMessage.contains("阅读区") || lowerMessage.contains("查看区") ||
-                lowerMessage.contains("浏览区") || lowerMessage.contains("输入区")) {
+        if (lowerMessage.contains("读取区") || lowerMessage.contains("read")) {
             return "read";
         }
 
-        // === 写入区（write）===
-        if (lowerMessage.contains("写入区") || lowerMessage.contains("write") ||
-                lowerMessage.contains("编辑区") || lowerMessage.contains("修改区")) {
-            return "write";
+        // === 等待区（wait）===
+        if (lowerMessage.contains("等待区") || lowerMessage.contains("wait")) {
+            return "wait";
         }
 
         // === 模板区（template）===
-        if (lowerMessage.contains("模板区") || lowerMessage.contains("template") ||
-                lowerMessage.contains("模版区") || lowerMessage.contains("样例区") ||
-                lowerMessage.contains("范例区")) {
+        if (lowerMessage.contains("模板区") || lowerMessage.contains("template")) {
             return "template";
         }
 
         // === 结果区（result）===
         if (lowerMessage.contains("结果区") || lowerMessage.contains("result") ||
-                lowerMessage.contains("输出区") || lowerMessage.contains("导出区") ||
-                lowerMessage.contains("成品区") || lowerMessage.contains("目标区")) {
+                lowerMessage.contains("输出区") || lowerMessage.contains("导出区")) {
             return "result";
         }
 
-        // 如果以上都没匹配，尝试从上下文推断
-        // 例如用户说"总结这个文件"、"总结那个文档"等，默认使用读取区
-        if (lowerMessage.contains("总结") || lowerMessage.contains("分析") ||
-                lowerMessage.contains("概括") || lowerMessage.contains("摘要")) {
-            return "read"; // 默认使用读取区
-        }
-
-        return null;
+        return null; // 没有明确指定区域
     }
 
     /**
@@ -713,8 +684,8 @@ public class ToolExecutionService {
         switch (section) {
             case "read":
                 return "读取区";
-            case "write":
-                return "写入区";
+            case "wait":
+                return "等待区";
             case "template":
                 return "模板区";
             case "result":
@@ -750,14 +721,29 @@ public class ToolExecutionService {
      */
     private String callSingleDocumentAnalysis(String prompt, Long userId) {
         try {
-            String apiKey = getApiKey(userId);
-            if (apiKey == null || apiKey.isEmpty()) {
-                log.warn("用户 {} 未配置 API Key", userId);
-                return "抱歉，AI 服务暂时不可用";
+            // 从用户配置中获取 API 配置
+            UserConfig config = userConfigService.getUserConfig(userId);
+
+            String apiKey = null;
+            String apiUrl = "https://api.siliconflow.cn/v1/chat/completions"; // 默认值
+            String model = "deepseek-ai/DeepSeek-V3.2"; // 默认值
+
+            if (config != null) {
+                apiKey = config.getSiliconFlowApiKey();
+                if (config.getSiliconFlowBaseUrl() != null && !config.getSiliconFlowBaseUrl().isEmpty()) {
+                    apiUrl = config.getSiliconFlowBaseUrl();
+                }
+                if (config.getAnalysisModelName() != null && !config.getAnalysisModelName().isEmpty()) {
+                    model = config.getAnalysisModelName();
+                }
             }
 
-            String apiUrl = "https://api.siliconflow.cn/v1/chat/completions";
-            String model = "deepseek-ai/DeepSeek-V3.2";
+            if (apiKey == null || apiKey.isEmpty()) {
+                log.warn("用户 {} 未配置 API Key", userId);
+                return "抱歉，AI 服务暂时不可用，请先配置 SiliconFlow API Key";
+            }
+
+            log.info("使用 API 配置 - URL: {}, Model: {}", apiUrl, model);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -883,7 +869,7 @@ public class ToolExecutionService {
             List<Map<String, String>> messages = List.of(
                     Map.of("role", "user", "content", prompt));
             requestBody.put("messages", messages);
-            requestBody.put("max_tokens", 4000); // 增加 token 数以支持长回复
+            requestBody.put("max_tokens", 4000);
             requestBody.put("temperature", 0.7);
 
             HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestBody, headers);

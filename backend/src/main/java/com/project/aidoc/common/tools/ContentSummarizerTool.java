@@ -216,23 +216,37 @@ public class ContentSummarizerTool {
      * 
      * @param content      内容
      * @param requirements 总结要求
-     * @param userId       用户ID
-     * @return AI生成的总结内容
+     * @param userId       用户 ID
+     * @return AI 生成的总结内容
      */
     private String callAiForSummary(String content, String requirements, Long userId) {
         try {
             // 构建提示词
             String prompt = buildSummaryPrompt(content, requirements);
 
-            // 调用 AI API（使用项目统一的配置）
-            String apiUrl = "https://api.siliconflow.cn/v1/chat/completions";
-            String apiKey = getApiKey(userId); // 从用户配置中获取
-            String model = "deepseek-ai/DeepSeek-V3.2";
+            // 从用户配置中获取 API 配置
+            UserConfig config = userConfigService.getUserConfig(userId);
+
+            String apiKey = null;
+            String apiUrl = "https://api.siliconflow.cn/v1/chat/completions"; // 默认值
+            String model = "deepseek-ai/DeepSeek-V3.2"; // 默认值
+
+            if (config != null) {
+                apiKey = config.getSiliconFlowApiKey();
+                if (config.getSiliconFlowBaseUrl() != null && !config.getSiliconFlowBaseUrl().isEmpty()) {
+                    apiUrl = config.getSiliconFlowBaseUrl();
+                }
+                if (config.getAnalysisModelName() != null && !config.getAnalysisModelName().isEmpty()) {
+                    model = config.getAnalysisModelName();
+                }
+            }
 
             if (apiKey == null || apiKey.isEmpty()) {
-                log.warn("未配置 API Key，使用默认总结");
+                log.warn("用户 {} 未配置 API Key，使用默认总结", userId);
                 return generateDefaultSummary(content);
             }
+
+            log.info("使用 API 配置 - URL: {}, Model: {}", apiUrl, model);
 
             // 构建请求
             HttpHeaders headers = new HttpHeaders();
