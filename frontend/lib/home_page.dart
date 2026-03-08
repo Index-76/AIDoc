@@ -136,6 +136,7 @@ class _MyHomePageState extends State<MyHomePage> {
   // SSE相关变量
   String? _toolStatusText; // 当前工具提示文本
   String? _lastToolName; // 记录最后一次使用的工具名称
+  int? _lastToolValue; // 记录最后一次使用的工具值（用于判断是否需要刷新结果区）
   Map<String, StreamSubscription<String>> _sseSubscriptions = {};
   List<String> _sseConnectionOrder = []; // 按连接时间顺序存储会话ID，最早的在前面
   bool _isSseConnected = false; // SSE连接状态
@@ -624,6 +625,7 @@ class _MyHomePageState extends State<MyHomePage> {
       setState(() {
         _toolStatusText = toolMessage;
         _lastToolName = toolName;
+        _lastToolValue = toolValue;
       });
     }
   }
@@ -646,6 +648,13 @@ class _MyHomePageState extends State<MyHomePage> {
       }
     }
     await _loadLatestAiMessage();
+
+    // 如果工具是 3~5（格式转换、智能填表、智能修改），刷新结果区文件
+    if (_lastToolValue != null &&
+        _lastToolValue! >= 3 &&
+        _lastToolValue! <= 5) {
+      await _refreshResultSection();
+    }
   }
 
   Future<void> _loadLatestAiMessage() async {
@@ -1330,6 +1339,20 @@ class _MyHomePageState extends State<MyHomePage> {
         );
       },
     );
+  }
+
+  // 刷新结果区文件显示
+  Future<void> _refreshResultSection() async {
+    try {
+      // 使用 GlobalKey 调用 FileSection 的 refreshFiles方法
+      final resultState = _resultSectionKey.currentState;
+      if (resultState != null && mounted) {
+        resultState.refreshFiles();
+        _logger.d('结果区文件已刷新');
+      }
+    } catch (e) {
+      _logger.e('刷新结果区失败：$e');
+    }
   }
 
   // 初始化：只检查最新对话是否为空，否则创建新对话

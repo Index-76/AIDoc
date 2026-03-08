@@ -66,7 +66,7 @@ public class ApiService {
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("model", model);
             requestBody.put("messages", List.of(message));
-            requestBody.put("max_tokens", 500);
+            requestBody.put("max_tokens", 8096);
             requestBody.put("temperature", 0.7);
 
             // 发送请求

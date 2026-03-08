@@ -1,9 +1,12 @@
 package com.project.aidoc.common.tools;
 
 import com.project.aidoc.entity.File;
+import com.project.aidoc.service.ApiService;
 import com.project.aidoc.service.FileService;
+import com.project.aidoc.service.UserConfigService;
 import com.project.aidoc.common.utils.ExcelToExcel;
 import com.project.aidoc.common.utils.TxtToExcel;
+import com.project.aidoc.common.utils.TxtToWord;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -12,7 +15,11 @@ import java.util.List;
 
 /**
  * 智能填表工具类
- * 支持Excel和Word模板的智能填表功能
+ * 支持四种文件类型组合的智能填表功能：
+ * - Excel to Excel
+ * - Excel to Word
+ * - Word to Excel
+ * - Word to Word
  */
 @Slf4j
 @Component
@@ -21,18 +28,24 @@ public class SmartFormFillerTool {
     @Autowired
     private FileService fileService;
 
+    @Autowired
+    private UserConfigService userConfigService;
+    
+    @Autowired
+    private ApiService apiService;
+
     /**
      * 执行智能填表功能
      * 
-     * @param userId      用户ID
+     * @param userId      用户 ID
      * @param userMessage 用户消息
      * @return 执行结果
      */
     public String executeFillForm(Long userId, String userMessage) {
-        log.info("开始执行智能填表功能，用户ID: {}", userId);
+        log.info("开始执行智能填表功能，用户 ID: {}", userId);
 
         try {
-            // 检查read和template区域的文件
+            // 检查 read 和 template 区域的文件
             List<File> readFiles = fileService.getFilesByUserIdAndSection(userId, "read");
             List<File> templateFiles = fileService.getFilesByUserIdAndSection(userId, "template");
 
@@ -54,37 +67,46 @@ public class SmartFormFillerTool {
             File readFile = readFiles.get(0);
             File templateFile = templateFiles.get(0);
 
-            log.info("找到读取文件: {} (类型: {})", readFile.getOriginalName(), readFile.getContentType());
-            log.info("找到模板文件: {} (类型: {})", templateFile.getOriginalName(), templateFile.getContentType());
+            log.info("找到读取文件：{} (类型：{})", readFile.getOriginalName(), readFile.getContentType());
+            log.info("找到模板文件：{} (类型：{})", templateFile.getOriginalName(), templateFile.getContentType());
 
-            // 判断读取区是否是Excel文件
+            // 判断文件类型
             boolean isReadExcel = isExcelFile(readFile);
+            boolean isTemplateExcel = isExcelFile(templateFile);
 
             String result;
-            if (isReadExcel) {
-                // 是Excel文件，调用ExcelToExcel方法
-                log.info("调用ExcelToExcel处理");
+            if (isReadExcel && isTemplateExcel) {
+                // Excel to Excel
+                log.info("调用 ExcelToExcel 处理");
                 result = ExcelToExcel.process(readFile, templateFile, userId, fileService);
+            } else if (isReadExcel && !isTemplateExcel) {
+                // Excel to Word
+                log.info("调用 ExcelToWord 处理（暂未实现）");
+                result = "暂不支持 Excel 到 Word 的填表功能";
+            } else if (!isReadExcel && isTemplateExcel) {
+                // Word to Excel
+                log.info("调用 TxtToExcel 处理");
+                result = TxtToExcel.process(readFile, templateFile, userId, fileService, userConfigService);
             } else {
-                // 不是Excel文件，调用TxtToExcel方法
-                log.info("调用TxtToExcel处理");
-                result = TxtToExcel.process(readFile, templateFile, userId, fileService);
+                // Word to Word
+                log.info("调用 TxtToWord 处理");
+                result = TxtToWord.process(readFile, templateFile, userId, fileService, userConfigService, apiService);
             }
 
-            log.info("智能填表执行完成: {}", result);
+            log.info("智能填表执行完成：{}", result);
             return result;
 
         } catch (Exception e) {
             log.error("智能填表执行失败", e);
-            return "智能填表执行失败: " + e.getMessage();
+            return "智能填表执行失败：" + e.getMessage();
         }
     }
 
     /**
-     * 判断文件是否为Excel格式
+     * 判断文件是否为 Excel 格式
      * 
      * @param file 文件对象
-     * @return 是否为Excel文件
+     * @return 是否为 Excel 文件
      */
     private boolean isExcelFile(File file) {
         if (file == null || file.getContentType() == null) {
@@ -94,7 +116,7 @@ public class SmartFormFillerTool {
         String contentType = file.getContentType().toLowerCase();
         String fileName = file.getOriginalName().toLowerCase();
 
-        // 检查MIME类型
+        // 检查 MIME 类型
         if (contentType.contains("excel") ||
                 contentType.contains("spreadsheet") ||
                 contentType.equals("application/vnd.ms-excel") ||

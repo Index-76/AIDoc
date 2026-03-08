@@ -176,32 +176,43 @@ class ApiService {
       request.headers['Authorization'] =
           'Bearer ${AuthConfig.getUserToken() ?? ''}';
 
+      // 根据文件扩展名确定正确的 Content-Type
+      String contentType = _getContentTypeForFile(fileName);
+      MediaType mediaType = MediaType.parse(contentType);
+
+      print('开始上传文件：$fileName, Content-Type: $contentType');
+
       // 根据文件类型处理上传
       if (file is io.File) {
         // 原生文件处理
+        var fileBytes = await file.readAsBytes();
+        print('原生文件大小：${fileBytes.length} bytes');
         var multipartFile = http.MultipartFile.fromBytes(
           'file',
-          await file.readAsBytes(),
+          fileBytes,
           filename: fileName,
-          contentType: MediaType('application', 'octet-stream'),
+          contentType: mediaType,
         );
         request.files.add(multipartFile);
       } else if (file is _VirtualFileForWeb) {
-        // Web环境文件处理
+        // Web 环境文件处理
+        var fileBytes = file.readAsBytesSync();
+        print('Web 文件大小：${fileBytes.length} bytes');
         var multipartFile = http.MultipartFile.fromBytes(
           'file',
-          file.readAsBytesSync(),
+          fileBytes,
           filename: fileName,
-          contentType: MediaType('application', 'octet-stream'),
+          contentType: mediaType,
         );
         request.files.add(multipartFile);
       } else if (file != null && file.bytes != null) {
-        // 添加对PlatformFile的支持
+        // 添加对 PlatformFile 的支持
+        print('PlatformFile 大小：${file.bytes!.length} bytes');
         var multipartFile = http.MultipartFile.fromBytes(
           'file',
           file.bytes!,
           filename: fileName,
-          contentType: MediaType('application', 'octet-stream'),
+          contentType: mediaType,
         );
         request.files.add(multipartFile);
       } else {
@@ -214,17 +225,25 @@ class ApiService {
         request.fields['section'] = 'read';
       }
 
+      print('发送上传请求到：$uploadUrl');
       var response = await request.send();
+      print('收到响应，状态码：${response.statusCode}');
       var responseString = await response.stream.bytesToString();
+      print('响应内容：$responseString');
 
       if (response.statusCode == 200) {
         Map<String, dynamic> data = jsonDecode(responseString);
         return data;
       } else {
-        return {'code': response.statusCode, 'message': '上传文件失败', 'data': null};
+        return {
+          'code': response.statusCode,
+          'message': '上传文件失败：状态码 ${response.statusCode}',
+          'data': null
+        };
       }
     } catch (e) {
-      return {'code': -1, 'message': '网络请求失败: $e', 'data': null};
+      print('上传异常：$e');
+      return {'code': -1, 'message': '网络请求失败：$e', 'data': null};
     }
   }
 
@@ -1234,5 +1253,59 @@ class ApiService {
 
     print('No valid sessionId found in response');
     return null;
+  }
+
+  /// 根据文件扩展名获取正确的 Content-Type
+  static String _getContentTypeForFile(String fileName) {
+    if (fileName.isEmpty) {
+      return 'application/octet-stream';
+    }
+
+    final lowerFileName = fileName.toLowerCase();
+    
+    // Word 文档
+    if (lowerFileName.endsWith('.doc')) {
+      return 'application/msword';
+    } else if (lowerFileName.endsWith('.docx')) {
+      return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    }
+    // Excel 表格
+    else if (lowerFileName.endsWith('.xls')) {
+      return 'application/vnd.ms-excel';
+    } else if (lowerFileName.endsWith('.xlsx')) {
+      return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    }
+    // PDF 文档
+    else if (lowerFileName.endsWith('.pdf')) {
+      return 'application/pdf';
+    }
+    // Markdown 文件
+    else if (lowerFileName.endsWith('.md') || lowerFileName.endsWith('.markdown')) {
+      return 'text/markdown';
+    }
+    // 文本文件
+    else if (lowerFileName.endsWith('.txt')) {
+      return 'text/plain';
+    }
+    // 图片文件
+    else if (lowerFileName.endsWith('.jpg') || lowerFileName.endsWith('.jpeg')) {
+      return 'image/jpeg';
+    } else if (lowerFileName.endsWith('.png')) {
+      return 'image/png';
+    } else if (lowerFileName.endsWith('.gif')) {
+      return 'image/gif';
+    }
+    // HTML 文件
+    else if (lowerFileName.endsWith('.html') || lowerFileName.endsWith('.htm')) {
+      return 'text/html';
+    }
+    // JSON 文件
+    else if (lowerFileName.endsWith('.json')) {
+      return 'application/json';
+    }
+    // 默认返回 octet-stream
+    else {
+      return 'application/octet-stream';
+    }
   }
 }
