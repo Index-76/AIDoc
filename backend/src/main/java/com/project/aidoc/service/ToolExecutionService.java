@@ -96,10 +96,8 @@ public class ToolExecutionService {
                     result = handleContentSummary(userId, userMessage);
                     break;
                 case FORMAT_CONVERSION:
-                    String convReq = extractConversionRequirements(userMessage);
-                    String convPath = extractFilePathFromMessage(userMessage);
-                    Map<String, Object> convInfo = formatConverterTool.convertFormat(convReq, convPath);
-                    result = formatConversionResult(convInfo);
+                    // 智能处理格式转换请求
+                    result = handleFormatConversion(userId, userMessage);
                     break;
                 case SMART_FILL:
                     // 执行智能填表功能
@@ -126,17 +124,68 @@ public class ToolExecutionService {
     }
 
     /**
-     * 从用户消息中提取文件路径
+     * 从用户消息中提取文件路径或文件名
+     * 
+     * 支持多种格式：
+     * 1. 完整路径：/path/to/file.txt
+     * 2. 带扩展名的文件名：report.pdf, 工作总结.docx
+     * 3. 自然语言描述："将 xxx.pdf 转换为 word"中的"xxx.pdf"
      */
     private String extractFilePathFromMessage(String message) {
-        // 简单的文件路径提取
-        String[] parts = message.split("[\\s:：]+");
+        if (message == null || message.isEmpty()) {
+            return null;
+        }
+
+        log.debug("尝试从消息中提取文件路径或文件名：{}", message);
+
+        // === 策略 1：尝试提取完整的文件路径（包含 / 或 \）===
+        String[] parts = message.split("[\\s:：,，]+");
         for (String part : parts) {
             if (part.contains(".") && (part.contains("/") || part.contains("\\"))) {
+                log.info("提取到完整文件路径：{}", part);
                 return part;
             }
         }
-        return "sample.txt"; // 默认文件
+
+        // === 策略 2：使用正则表达式匹配带扩展名的文件名 ===
+        // 常见文档扩展名
+        String filePattern = "([\\u4e00-\\u9fa5\\w\\-\\s()\\(\\)]+\\.(pdf|docx|doc|xlsx|xls|txt|md|markdown|csv|pptx|ppt))";
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(filePattern, java.util.regex.Pattern.CASE_INSENSITIVE);
+        java.util.regex.Matcher matcher = pattern.matcher(message);
+        
+        if (matcher.find()) {
+            String fileName = matcher.group(1).trim();
+            // 清理首尾的标点符号
+            fileName = fileName.replaceAll("^[,，.。:\\s]+", "")
+                              .replaceAll("[,，.。:\\s]+$", "");
+            log.info("通过正则匹配到文件名：{}", fileName);
+            return fileName;
+        }
+
+        // === 策略 3：尝试从特定句式中提取文件名 ===
+        // 例如："将 xxx.pdf 转换为 word"、"转换 xxx.docx 为 pdf"
+        String[] extractPatterns = {
+            "将\\s*([\\u4e00-\\u9fa5\\w\\-\\s()\\(\\)]+\\.[a-zA-Z0-9]+)\\s*(?:转换|转|变为)",
+            "转换\\s*([\\u4e00-\\u9fa5\\w\\-\\s()\\(\\)]+\\.[a-zA-Z0-9]+)\\s*(?:为|成|到)",
+            "把\\s*([\\u4e00-\\u9fa5\\w\\-\\s()\\(\\)]+\\.[a-zA-Z0-9]+)\\s*(?:转换|转|变为)"
+        };
+        
+        for (String extractPattern : extractPatterns) {
+            java.util.regex.Pattern extractPat = java.util.regex.Pattern.compile(extractPattern, java.util.regex.Pattern.CASE_INSENSITIVE);
+            java.util.regex.Matcher extractMat = extractPat.matcher(message);
+            
+            if (extractMat.find()) {
+                String fileName = extractMat.group(1).trim();
+                // 清理首尾的标点符号和空格
+                fileName = fileName.replaceAll("^[,，.。:\\s]+", "")
+                                  .replaceAll("[,，.。:\\s]+$", "");
+                log.info("通过句式模式匹配到文件名：{}", fileName);
+                return fileName;
+            }
+        }
+
+        log.debug("未从消息中提取到有效的文件路径或文件名");
+        return null; // 未找到文件
     }
 
     /**
@@ -918,30 +967,76 @@ public class ToolExecutionService {
     }
 
     /**
-     * 查找匹配的文件
+     * 查找匹配的文件（采用三级匹配策略）
+     * 
+     * 匹配优先级：
+     * 1. 精确匹配：完整匹配 originalName 或 fileName（含扩展名）
+     * 2. 无扩展名匹配：去除扩展名后进行匹配
+     * 3. 宽松模糊匹配：仅当搜索词是文件名的完整子串时才视为匹配
      */
     private File findMatchingFile(List<File> files, String searchName) {
         if (searchName == null || files == null || files.isEmpty()) {
             return null;
         }
 
-        // 精确匹配文件名
+        log.debug("开始匹配文件，搜索词：{}, 候选文件数：{}", searchName, files.size());
+
+        // === 第一级：精确匹配文件名（含扩展名）===
         for (File file : files) {
             if (file.getOriginalName().equals(searchName) ||
                     file.getFileName().equals(searchName)) {
+                log.info("精确匹配到文件：{} (original: {}, fileName: {})", 
+                        searchName, file.getOriginalName(), file.getFileName());
                 return file;
             }
         }
 
-        // 模糊匹配（包含搜索字符串）
+        // === 第二级：无扩展名匹配 ===
+        String searchNameWithoutExt = removeFileExtension(searchName);
+        log.debug("精确匹配失败，尝试无扩展名匹配：{}", searchNameWithoutExt);
+        
         for (File file : files) {
-            if (file.getOriginalName().contains(searchName) ||
-                    file.getFileName().contains(searchName)) {
+            String originalNameWithoutExt = removeFileExtension(file.getOriginalName());
+            String fileNameWithoutExt = removeFileExtension(file.getFileName());
+            
+            if (originalNameWithoutExt.equals(searchNameWithoutExt) ||
+                    fileNameWithoutExt.equals(searchNameWithoutExt)) {
+                log.info("无扩展名匹配到文件：{} -> {}", searchName, file.getOriginalName());
                 return file;
             }
         }
 
+        // === 第三级：宽松模糊匹配（仅当搜索词是完整子串时）===
+        log.debug("无扩展名匹配失败，尝试宽松模糊匹配");
+        
+        for (File file : files) {
+            // 忽略大小写进行子串匹配
+            if (file.getOriginalName().toLowerCase().contains(searchName.toLowerCase()) ||
+                    file.getFileName().toLowerCase().contains(searchName.toLowerCase())) {
+                log.warn("宽松模糊匹配到文件：{} -> {} (可能存在误匹配，请用户确认)", 
+                        searchName, file.getOriginalName());
+                return file;
+            }
+        }
+
+        log.info("未匹配到文件：{}", searchName);
         return null;
+    }
+
+    /**
+     * 移除文件扩展名
+     */
+    private String removeFileExtension(String fileName) {
+        if (fileName == null || fileName.isEmpty()) {
+            return fileName;
+        }
+        
+        int lastDotIndex = fileName.lastIndexOf('.');
+        if (lastDotIndex > 0 && lastDotIndex < fileName.length() - 1) {
+            // 确保不是以点开头的隐藏文件
+            return fileName.substring(0, lastDotIndex);
+        }
+        return fileName;
     }
 
     /**
@@ -985,5 +1080,263 @@ public class ToolExecutionService {
             }
         }
         return result;
+    }
+
+    /**
+     * 智能处理格式转换请求（完全参考内容总结的匹配机制）
+     */
+    private String handleFormatConversion(Long userId, String userMessage) {
+        try {
+            // 1. 尝试从消息中提取目标区域
+            String targetSection = extractSectionFromMessage(userMessage);
+            
+            // 2. 如果用户没有指定区域，默认使用读取区（read）
+            if (targetSection == null || targetSection.isEmpty()) {
+                targetSection = "read";
+            }
+            
+            // 3. 从消息中提取目标格式
+            String targetFormat = extractTargetFormatFromMessage(userMessage);
+            
+            // 4. 尝试从消息中提取文件名或路径
+            String filePath = extractFilePathFromMessage(userMessage);
+            
+            log.info("格式转换请求 - 区域：{}, 目标格式：{}, 文件路径：{}", 
+                    targetSection, targetFormat, filePath);
+            
+            // 5. 获取用户指定区域的所有文件
+            List<File> sectionFiles = fileService.getFilesByUserIdAndSection(userId, targetSection);
+            
+            if (sectionFiles.isEmpty()) {
+                String sectionName = getSectionDisplayName(targetSection);
+                return "您的" + sectionName + "还没有任何文件。请先上传需要转换的文档。";
+            }
+            
+            // 6. 过滤掉缓存文件
+            List<File> realFiles = filterOutCacheFiles(sectionFiles);
+            
+            if (realFiles.isEmpty()) {
+                return "您指定的区域没有找到可转换的文件。";
+            }
+            
+            // 7. 如果指定了具体文件，转换单个文件
+            if (filePath != null && !filePath.isEmpty()) {
+                log.info("用户指定了文件：{}, 在 {} 中查找", filePath, targetSection);
+                
+                // 尝试匹配用户指定的文件
+                File matchedFile = findMatchingFile(realFiles, filePath);
+                
+                if (matchedFile != null) {
+                    log.info("匹配到文件 - ID: {}, OriginalName: {}, FileName: {}", 
+                             matchedFile.getId(), matchedFile.getOriginalName(), matchedFile.getFileName());
+                    
+                    // 确定实际的目标格式
+                    String actualTargetFormat = determineTargetFormat(matchedFile, targetFormat);
+                    
+                    if (actualTargetFormat == null) {
+                        return "暂不支持将 " + getFileExtension(matchedFile.getOriginalName()) + 
+                               " 格式转换为 " + targetFormat + " 格式。";
+                    }
+                    
+                    // 执行单个文件转换
+                    return convertSingleFile(userId, matchedFile, actualTargetFormat);
+                } else {
+                    // 未找到匹配的文件
+                    String sectionName = getSectionDisplayName(targetSection);
+                    return "在" + sectionName + "未找到名为 \"" + filePath + "\" 的文件。请使用文件的完整名称，或先查看目录确认文件名。";
+                }
+            }
+            
+            // 8. 未指定文件时，批量转换指定区域的所有文件
+            log.info("未指定文件，批量转换 {} 的所有文件 ({})", targetSection, realFiles.size());
+            return batchConvertFiles(userId, realFiles, targetSection, targetFormat);
+            
+        } catch (Exception e) {
+            log.error("处理格式转换请求失败", e);
+            return "处理格式转换请求时发生错误：" + e.getMessage();
+        }
+    }
+
+    /**
+     * 从消息中提取目标格式
+     */
+    private String extractTargetFormatFromMessage(String message) {
+        if (message == null || message.isEmpty()) {
+            return null;
+        }
+        
+        String lowerMessage = message.toLowerCase();
+        
+        // 检查各种格式关键词
+        if (lowerMessage.contains("pdf")) {
+            return "pdf";
+        } else if (lowerMessage.contains("word") || lowerMessage.contains("docx") || lowerMessage.contains("doc")) {
+            return "docx";
+        } else if (lowerMessage.contains("excel") || lowerMessage.contains("xlsx") || lowerMessage.contains("xls")) {
+            return "xlsx";
+        } else if (lowerMessage.contains("txt") || lowerMessage.contains("text") || lowerMessage.contains("文本")) {
+            return "txt";
+        } else if (lowerMessage.contains("md") || lowerMessage.contains("markdown")) {
+            return "md";
+        }
+        
+        return null; // 未明确指定目标格式
+    }
+
+    /**
+     * 根据源文件确定实际的目标格式
+     */
+    private String determineTargetFormat(File sourceFile, String requestedFormat) {
+        String sourceExt = getFileExtension(sourceFile.getOriginalName());
+        
+        // 如果用户指定了目标格式，按用户的来
+        if (requestedFormat != null && !requestedFormat.isEmpty()) {
+            return requestedFormat;
+        }
+        
+        // 用户未指定时，根据源文件类型自动选择
+        if ("pdf".equals(sourceExt)) {
+            // PDF 文件默认转为 Word
+            return "docx";
+        } else if ("docx".equals(sourceExt) || "doc".equals(sourceExt) || 
+                   "xlsx".equals(sourceExt) || "xls".equals(sourceExt) ||
+                   "md".equals(sourceExt) || "markdown".equals(sourceExt) ||
+                   "txt".equals(sourceExt)) {
+            // 其他文件默认转为 PDF
+            return "pdf";
+        }
+        
+        // 不支持的格式
+        return null;
+    }
+
+    /**
+     * 获取文件扩展名
+     */
+    private String getFileExtension(String fileName) {
+        if (fileName == null || fileName.lastIndexOf('.') == -1) {
+            return "";
+        }
+        return fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
+    }
+
+    /**
+     * 转换单个文件
+     */
+    private String convertSingleFile(Long userId, File sourceFile, String targetFormat) {
+        try {
+            log.info("开始转换单个文件：{} -> {}", sourceFile.getOriginalName(), targetFormat);
+            
+            // 构建转换要求
+            String convReq = "转换为" + targetFormat;
+            
+            // 调用格式转换工具
+            Map<String, Object> convInfo = formatConverterTool.convertFormat(convReq, sourceFile.getId());
+            
+            // 检查结果
+            if ("success".equals(convInfo.get("status"))) {
+                StringBuilder result = new StringBuilder();
+                result.append("✅ 格式转换已完成！\n\n");
+                result.append("📄 源文件：").append(sourceFile.getOriginalName()).append("\n");
+                result.append("📑 目标格式：").append(targetFormat.toUpperCase()).append("\n");
+                result.append("💾 保存位置：结果区（result）\n\n");
+                result.append("转换后的文件已保存到结果区，您可以随时查看或下载。");
+                return result.toString();
+            } else {
+                String errorMsg = convInfo.get("message") != null ? 
+                                  convInfo.get("message").toString() : "转换失败";
+                return "❌ 格式转换失败：" + errorMsg;
+            }
+            
+        } catch (Exception e) {
+            log.error("转换文件失败：{}", sourceFile.getOriginalName(), e);
+            return "❌ 格式转换失败：" + e.getMessage();
+        }
+    }
+
+    /**
+     * 批量转换文件
+     */
+    private String batchConvertFiles(Long userId, List<File> files, String targetSection, String targetFormat) {
+        try {
+            StringBuilder resultBuilder = new StringBuilder();
+            int successCount = 0;
+            int failedCount = 0;
+            
+            for (File sourceFile : files) {
+                try {
+                    // 确定每个文件的实际目标格式
+                    String actualTargetFormat = determineTargetFormat(sourceFile, targetFormat);
+                    
+                    if (actualTargetFormat == null) {
+                        // 不支持的转换
+                        failedCount++;
+                        resultBuilder.append("❌ **").append(sourceFile.getOriginalName())
+                                    .append("**：暂不支持该格式转换\n");
+                        continue;
+                    }
+                    
+                    // 执行转换
+                    String convReq = "转换为" + actualTargetFormat;
+                    Map<String, Object> convInfo = formatConverterTool.convertFormat(convReq, sourceFile.getId());
+                    
+                    if ("success".equals(convInfo.get("status"))) {
+                        successCount++;
+                        resultBuilder.append("✅ **").append(sourceFile.getOriginalName())
+                                    .append("** → ").append(actualTargetFormat.toUpperCase()).append("\n");
+                    } else {
+                        failedCount++;
+                        String errorMsg = convInfo.get("message") != null ? 
+                                         convInfo.get("message").toString() : "转换失败";
+                        resultBuilder.append("❌ **").append(sourceFile.getOriginalName())
+                                    .append("**：").append(errorMsg).append("\n");
+                    }
+                    
+                } catch (Exception e) {
+                    log.error("转换文件失败：{}", sourceFile.getOriginalName(), e);
+                    failedCount++;
+                    resultBuilder.append("❌ **").append(sourceFile.getOriginalName())
+                                .append("**：转换失败 - ").append(e.getMessage()).append("\n");
+                }
+            }
+            
+            // 构建最终结果
+            StringBuilder finalResult = new StringBuilder();
+            String sectionName = getSectionDisplayName(targetSection);
+            
+            if (files.size() == 1) {
+                // 单个文件转换
+                if (successCount > 0) {
+                    File convertedFile = files.get(0);
+                    String actualTargetFormat = determineTargetFormat(convertedFile, targetFormat);
+                    finalResult.append("✅ 格式转换已完成！\n\n");
+                    finalResult.append("📄 源文件：").append(convertedFile.getOriginalName()).append("\n");
+                    finalResult.append("📑 目标格式：").append(actualTargetFormat).append("\n");
+                    finalResult.append("💾 保存位置：结果区（result）\n\n");
+                    finalResult.append("转换后的文件已保存到结果区，您可以随时查看或下载。");
+                } else {
+                    finalResult.append("❌ 格式转换失败\n\n");
+                    finalResult.append(resultBuilder.toString());
+                }
+            } else {
+                // 批量文件转换
+                finalResult.append("📊 批量格式转换完成！\n\n");
+                finalResult.append("✅ 成功：").append(successCount).append(" 个文件\n");
+                if (failedCount > 0) {
+                    finalResult.append("❌ 失败：").append(failedCount).append(" 个文件\n");
+                }
+                finalResult.append("\n转换详情：\n").append(resultBuilder.toString());
+                
+                if (successCount > 0) {
+                    finalResult.append("\n所有转换成功的文件已保存到结果区，您可以随时查看或下载。");
+                }
+            }
+            
+            return finalResult.toString();
+            
+        } catch (Exception e) {
+            log.error("批量转换文件失败", e);
+            return "批量转换失败：" + e.getMessage();
+        }
     }
 }
