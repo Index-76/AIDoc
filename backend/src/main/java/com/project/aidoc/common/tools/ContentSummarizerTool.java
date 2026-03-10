@@ -202,7 +202,8 @@ public class ContentSummarizerTool {
         String trimmed = content.trim();
         if ((trimmed.startsWith("{") && trimmed.endsWith("}")) ||
                 (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
-            return content; // 返回原始字符串，让前端解析
+            log.debug("检测到 JSON 格式内容，长度：{}", content.length());
+            return content;
         }
 
         // 如果不是 JSON 格式，包装成简单的对象
@@ -270,7 +271,11 @@ public class ContentSummarizerTool {
                 List<Map<String, Object>> choices = (List<Map<String, Object>>) responseBody.get("choices");
                 if (choices != null && !choices.isEmpty()) {
                     Map<String, Object> messageObj = (Map<String, Object>) choices.get(0).get("message");
-                    return (String) messageObj.get("content");
+                    String aiContent = (String) messageObj.get("content");
+
+                    // 确保换行符被正确处理
+                    log.info("AI 返回内容长度：{}, 包含换行符：{}", aiContent.length(), aiContent.contains("\n"));
+                    return aiContent;
                 }
             }
 
