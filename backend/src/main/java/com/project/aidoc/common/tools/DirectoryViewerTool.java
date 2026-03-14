@@ -21,10 +21,10 @@ public class DirectoryViewerTool {
     
     /**
      * 查看指定用户的所有文件目录情况
-     * @param userId 用户 ID
+     * @param userId 用户 ID (String ObjectId)
      * @return 包含目录信息的 Map
      */
-    public Map<String, Object> viewUserDirectory(Long userId) {
+    public Map<String, Object> viewUserDirectory(String userId) {
         try {
             // 获取用户的所有文件
             List<File> userFiles = fileService.getFilesByUserId(userId);

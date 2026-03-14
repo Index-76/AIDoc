@@ -7,7 +7,7 @@ import java.util.List;
 
 @Repository
 public interface FileRepository extends MongoRepository<File, String> {
-    List<File> findByUserId(Long userId);
-    List<File> findByUserIdAndSection(Long userId, String section);
-    void deleteByUserIdAndId(Long userId, String fileId);
+    List<File> findByUserId(String userId);
+    List<File> findByUserIdAndSection(String userId, String section);
+    void deleteByUserIdAndId(String userId, String fileId);
 }

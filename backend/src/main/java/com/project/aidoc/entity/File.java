@@ -16,7 +16,7 @@ public class File {
     private String contentType;
     private long size;
     private String section; // 文件分类
-    private Long userId; // 所属用户ID
+    private String userId; // 所属用户 ID (String ObjectId)
     private LocalDateTime uploadTime;
     private String filePath; // 文件存储路径
     

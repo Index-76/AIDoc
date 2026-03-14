@@ -41,13 +41,13 @@ public class TxtToWord {
      * 处理文本到 Word 的填表操作
      * @param readFile 读取区的文件（纯文本文件）
      * @param templateFile 模板区的 Word 文件
-     * @param userId 用户 ID
+     * @param userId 用户 ID (String ObjectId)
      * @param fileService 文件服务
      * @param userConfigService 用户配置服务（用于获取 API Key）
      * @param apiService API 服务（用于调用 AI 接口）
      * @return 处理结果描述
      */
-    public static String process(File readFile, File templateFile, Long userId,
+    public static String process(File readFile, File templateFile, String userId,
                                 FileService fileService, UserConfigService userConfigService, ApiService apiService) {
         // 用于记录所有已创建的临时文件 ID
         Set<String> tempFileIds = new HashSet<>();
@@ -238,7 +238,7 @@ public class TxtToWord {
     /**
      * 步骤 2: 创建模板副本
      */
-    private static String createTemplateCopy(File templateFile, Long userId, FileService fileService) 
+    private static String createTemplateCopy(File templateFile, String userId, FileService fileService) 
             throws Exception {
         log.info("步骤 2: 创建 Word 模板副本");
         
@@ -299,7 +299,7 @@ public class TxtToWord {
      * 根据 fileName 查找对应的文件
      */
     private static File findFileByFileName(String readFileId, String targetFileName, 
-                                           Long userId, FileService fileService) {
+                                           String userId, FileService fileService) {
         try {
             // 从 temp 区查找所有文件
             List<File> tempFiles = fileService.getFilesByUserIdAndSection(userId, "temp");
@@ -375,7 +375,7 @@ public class TxtToWord {
      */
     private static Map<Integer, Map<Integer, String>> extractDataWithAI(
             List<TextChunk> chunks, Map<String, Object> tableInfo,
-            Long userId, String originalTemplateFileId, 
+            String userId, String originalTemplateFileId, 
             FileService fileService, UserConfigService userConfigService, ApiService apiService) throws Exception {
         log.info("步骤 4: 并行 AI 提取数据");
         
@@ -482,7 +482,7 @@ public class TxtToWord {
      * 保存 AI 提取结果到临时文件
      */
     private static String saveAIResultToTemp(ChunkResult result, int chunkId, int tableId,
-                                      String templateFileId, Long userId, FileService fileService) throws Exception {
+                                      String templateFileId, String userId, FileService fileService) throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         String jsonContent = mapper.writeValueAsString(result);
         String fileName = templateFileId + AI_RESULT_FILE_PREFIX + tableId + "_chunk" + chunkId + ".json";
@@ -498,7 +498,7 @@ public class TxtToWord {
      * 调用 AI 接口提取单个段落的数据
      */
     private static ChunkResult callAIForChunk(TextChunk chunk, Map<String, Object> tableInfo,
-                                              Long userId, String apiKey, String apiUrl, String modelName, ApiService apiService) throws Exception {
+                                              String userId, String apiKey, String apiUrl, String modelName, ApiService apiService) throws Exception {
         String description1 = (String) tableInfo.get("sheetDiscription1");
         String description2 = (String) tableInfo.get("sheetDiscription2");
         List<String> headers = (List<String>) tableInfo.get("headers");
@@ -547,7 +547,7 @@ public class TxtToWord {
         return parseAIResponse(aiResponse, chunk.getChunkId());
     }
     
-    private static String getApiKeyFromUserConfig(Long userId, UserConfigService userConfigService) {
+    private static String getApiKeyFromUserConfig(String userId, UserConfigService userConfigService) {
         UserConfig userConfig = userConfigService.getUserConfig(userId);
         if (userConfig == null || userConfig.getSiliconFlowApiKey() == null ||
                 userConfig.getSiliconFlowApiKey().isEmpty()) {
@@ -557,7 +557,7 @@ public class TxtToWord {
         return userConfig.getSiliconFlowApiKey();
     }
     
-    private static String getApiUrlFromUserConfig(Long userId, UserConfigService userConfigService) {
+    private static String getApiUrlFromUserConfig(String userId, UserConfigService userConfigService) {
         UserConfig userConfig = userConfigService.getUserConfig(userId);
         if (userConfig == null || userConfig.getSiliconFlowBaseUrl() == null ||
                 userConfig.getSiliconFlowBaseUrl().isEmpty()) {
@@ -567,7 +567,7 @@ public class TxtToWord {
         return userConfig.getSiliconFlowBaseUrl();
     }
 
-    private static String getAnalysisModelNameFromUserConfig(Long userId, UserConfigService userConfigService) {
+    private static String getAnalysisModelNameFromUserConfig(String userId, UserConfigService userConfigService) {
         UserConfig userConfig = userConfigService.getUserConfig(userId);
         if (userConfig == null || userConfig.getAnalysisModelName() == null ||
                 userConfig.getAnalysisModelName().isEmpty()) {
@@ -754,7 +754,7 @@ public class TxtToWord {
     private static Map<Integer, List<Object[]>> mergeChunkData(
             Map<Integer, Map<Integer, String>> resultFileMap,
             Map<String, Object> tableInfo,
-            Long userId, FileService fileService) throws Exception {
+            String userId, FileService fileService) throws Exception {
         log.info("步骤 5: 合并段落数据（按主键分组，聚合合并）");
         
         List<Map<String, Object>> tables = (List<Map<String, Object>>) tableInfo.get("tables");
@@ -948,7 +948,7 @@ public class TxtToWord {
     /**
      * 步骤 7: 清理与返回
      */
-    private static void cleanupAndFinish(String resultFileId, Set<String> tempFileIds, Long userId, FileService fileService) throws Exception {
+    private static void cleanupAndFinish(String resultFileId, Set<String> tempFileIds, String userId, FileService fileService) throws Exception {
         log.info("步骤 7: 清理临时文件并移动结果");
         
         File filledFile = fileService.getFileById(resultFileId, userId);

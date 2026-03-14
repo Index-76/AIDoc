@@ -29,7 +29,7 @@ public class HeaderExtractorUtil {
      * @return 包含表头信息的 Map，其中 fileId 字段已更新为保存后的临时文件 ID
      * @throws Exception 当读取或保存失败时抛出异常
      */
-    public static Map<String, Object> extractTemplateHeaders(File templateFile, Long userId, 
+    public static Map<String, Object> extractTemplateHeaders(File templateFile, String userId, 
                                                               FileService fileService) throws Exception {
         log.info("步骤 0: 提取模板表头信息");
         
@@ -77,7 +77,7 @@ public class HeaderExtractorUtil {
      * @throws Exception 当保存失败时抛出异常
      */
     private static String saveHeaderInfo(Map<String, Object> headerInfo, String templateFileId,
-                                       Long userId, FileService fileService) throws Exception {
+                                       String userId, FileService fileService) throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         String jsonContent = mapper.writeValueAsString(headerInfo);
         

@@ -77,7 +77,7 @@ public class ToolExecutionService {
      * @param sessionId   会话ID
      * @return 工具执行结果
      */
-    public String executeTool(Long userId, int toolCode, String userMessage, String sessionId) {
+    public String executeTool(String userId, int toolCode, String userMessage, String sessionId) {
         ToolType toolType = ToolType.fromCode(toolCode);
 
         log.info("开始执行工具: {} ({})", toolType.getDescription(), toolCode);
@@ -285,7 +285,7 @@ public class ToolExecutionService {
     /**
      * 智能处理内容总结请求
      */
-    private String handleContentSummary(Long userId, String userMessage) {
+    private String handleContentSummary(String userId, String userMessage) {
         try {
             // 1. 尝试从消息中提取目标区域
             String targetSection = extractSectionFromMessage(userMessage);
@@ -420,7 +420,7 @@ public class ToolExecutionService {
     /**
      * 批量总结所有文件 - 每个文件独立并行处理，最后拼接输出
      */
-    private String batchSummarizeAllFiles(Long userId, String userMessage) {
+    private String batchSummarizeAllFiles(String userId, String userMessage) {
         try {
             // 1. 尝试从消息中提取目标区域（read/wait/template/result）
             String targetSection = extractSectionFromMessage(userMessage);
@@ -506,7 +506,7 @@ public class ToolExecutionService {
     /**
      * 总结单个文件（带缓存检查和写入）
      */
-    private String summarizeSingleFileWithCache(File sourceFile, Long userId, String summaryReq) {
+    private String summarizeSingleFileWithCache(File sourceFile, String userId, String summaryReq) {
         try {
             // 1. 检查是否存在总结缓存
             String cacheFileName = sourceFile.getId() + "_summary.json";
@@ -639,7 +639,7 @@ public class ToolExecutionService {
      * 获取文档内容用于总结
      * 优先级：1. 总结缓存（JSON） > 2. 文本文件（TXT）
      */
-    private String getDocumentContentForSummary(File sourceFile, Long userId) {
+    private String getDocumentContentForSummary(File sourceFile, String userId) {
         try {
             // 1. 首先尝试查找总结缓存
             String cacheFileName = sourceFile.getId() + "_summary.json";
@@ -768,7 +768,7 @@ public class ToolExecutionService {
     /**
      * 调用 AI 分析单个文档（避免多文档混合导致的幻觉）
      */
-    private String callSingleDocumentAnalysis(String prompt, Long userId) {
+    private String callSingleDocumentAnalysis(String prompt, String userId) {
         try {
             // 从用户配置中获取 API 配置
             UserConfig config = userConfigService.getUserConfig(userId);
@@ -831,7 +831,7 @@ public class ToolExecutionService {
     /**
      * 将 AI 的总结结果保存到 temp 区作为缓存
      */
-    private void saveAiSummaryToTemp(String sourceFileId, String aiSummary, Long userId) {
+    private void saveAiSummaryToTemp(String sourceFileId, String aiSummary, String userId) {
         try {
             String cacheFileName = sourceFileId + "_summary.json";
 
@@ -895,7 +895,7 @@ public class ToolExecutionService {
     /**
      * 调用 AI 进行多文档综合分析
      */
-    private String callAiForMultiDocumentAnalysis(String prompt, Long userId) {
+    private String callAiForMultiDocumentAnalysis(String prompt, String userId) {
         try {
             // 获取用户的 API Key
             String apiKey = getApiKey(userId);
@@ -945,7 +945,7 @@ public class ToolExecutionService {
     /**
      * 生成简单的多文档总结（当 AI 不可用时）
      */
-    private String generateSimpleMultiDocumentSummary(Long userId) {
+    private String generateSimpleMultiDocumentSummary(String userId) {
         List<File> tempFiles = fileService.getFilesByUserIdAndSection(userId, "temp");
         List<File> textFiles = tempFiles.stream()
                 .filter(f -> f.getFileName().endsWith("_text.txt"))
@@ -1057,7 +1057,7 @@ public class ToolExecutionService {
     /**
      * 获取 API Key（从用户配置中获取）
      */
-    private String getApiKey(Long userId) {
+    private String getApiKey(String userId) {
         // 从 MongoDB 中获取用户的配置
         UserConfig config = userConfigService.getUserConfig(userId);
         if (config != null && config.getSiliconFlowApiKey() != null && !config.getSiliconFlowApiKey().isEmpty()) {
@@ -1085,7 +1085,7 @@ public class ToolExecutionService {
     /**
      * 智能处理格式转换请求（完全参考内容总结的匹配机制）
      */
-    private String handleFormatConversion(Long userId, String userMessage) {
+    private String handleFormatConversion(String userId, String userMessage) {
         try {
             // 1. 尝试从消息中提取目标区域
             String targetSection = extractSectionFromMessage(userMessage);
@@ -1223,119 +1223,76 @@ public class ToolExecutionService {
     /**
      * 转换单个文件
      */
-    private String convertSingleFile(Long userId, File sourceFile, String targetFormat) {
+    private String convertSingleFile(String userId, File sourceFile, String targetFormat) {
         try {
-            log.info("开始转换单个文件：{} -> {}", sourceFile.getOriginalName(), targetFormat);
-            
-            // 构建转换要求
-            String convReq = "转换为" + targetFormat;
-            
+            String sourceFilePath = sourceFile.getFilePath();
+            String sourceFileName = sourceFile.getOriginalName();
+
             // 调用格式转换工具
-            Map<String, Object> convInfo = formatConverterTool.convertFormat(convReq, sourceFile.getId());
-            
-            // 检查结果
-            if ("success".equals(convInfo.get("status"))) {
-                StringBuilder result = new StringBuilder();
-                result.append("✅ 格式转换已完成！\n\n");
-                result.append("📄 源文件：").append(sourceFile.getOriginalName()).append("\n");
-                result.append("📑 目标格式：").append(targetFormat.toUpperCase()).append("\n");
-                result.append("💾 保存位置：结果区（result）\n\n");
-                result.append("转换后的文件已保存到结果区，您可以随时查看或下载。");
-                return result.toString();
-            } else {
-                String errorMsg = convInfo.get("message") != null ? 
-                                  convInfo.get("message").toString() : "转换失败";
-                return "❌ 格式转换失败：" + errorMsg;
+            Map<String, Object> conversionInfo = formatConverterTool.convertFormat(
+                    targetFormat,
+                    sourceFilePath);
+
+            if (!"success".equals(conversionInfo.get("status"))) {
+                return "转换失败：" + conversionInfo.get("message");
             }
-            
+
+            // 获取转换后的文件信息
+            String convertedFilePath = (String) conversionInfo.get("convertedFilePath");
+            String convertedFileName = (String) conversionInfo.get("convertedFileName");
+
+            // 返回格式化的转换结果
+            return formatConversionResult(conversionInfo);
+
         } catch (Exception e) {
             log.error("转换文件失败：{}", sourceFile.getOriginalName(), e);
-            return "❌ 格式转换失败：" + e.getMessage();
+            return "转换失败：" + e.getMessage();
         }
     }
 
     /**
      * 批量转换文件
      */
-    private String batchConvertFiles(Long userId, List<File> files, String targetSection, String targetFormat) {
+    private String batchConvertFiles(String userId, List<File> files, String targetSection, String targetFormat) {
         try {
-            StringBuilder resultBuilder = new StringBuilder();
-            int successCount = 0;
-            int failedCount = 0;
-            
+            // 1. 为每个文件创建独立的转换任务（并行执行）
+            List<CompletableFuture<String>> futures = new ArrayList<>();
+
             for (File sourceFile : files) {
+                CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {
+                    try {
+                        return convertSingleFile(userId, sourceFile, targetFormat);
+                    } catch (Exception e) {
+                        log.error("转换文件失败：{}", sourceFile.getOriginalName(), e);
+                        return "文档《" + sourceFile.getOriginalName() + "》转换失败：" + e.getMessage();
+                    }
+                }, summaryExecutor);
+                futures.add(future);
+            }
+
+            // 2. 等待所有任务完成并收集结果
+            StringBuilder resultBuilder = new StringBuilder();
+            resultBuilder.append("好的，已成功为您转换").append(getSectionDisplayName(targetSection)).append("的文件。结果如下：\n\n");
+
+            for (int i = 0; i < futures.size(); i++) {
                 try {
-                    // 确定每个文件的实际目标格式
-                    String actualTargetFormat = determineTargetFormat(sourceFile, targetFormat);
-                    
-                    if (actualTargetFormat == null) {
-                        // 不支持的转换
-                        failedCount++;
-                        resultBuilder.append("❌ **").append(sourceFile.getOriginalName())
-                                    .append("**：暂不支持该格式转换\n");
-                        continue;
-                    }
-                    
-                    // 执行转换
-                    String convReq = "转换为" + actualTargetFormat;
-                    Map<String, Object> convInfo = formatConverterTool.convertFormat(convReq, sourceFile.getId());
-                    
-                    if ("success".equals(convInfo.get("status"))) {
-                        successCount++;
-                        resultBuilder.append("✅ **").append(sourceFile.getOriginalName())
-                                    .append("** → ").append(actualTargetFormat.toUpperCase()).append("\n");
-                    } else {
-                        failedCount++;
-                        String errorMsg = convInfo.get("message") != null ? 
-                                         convInfo.get("message").toString() : "转换失败";
-                        resultBuilder.append("❌ **").append(sourceFile.getOriginalName())
-                                    .append("**：").append(errorMsg).append("\n");
-                    }
-                    
+                    String conversionResult = futures.get(i).get(); // 等待当前任务完成
+                    resultBuilder.append(conversionResult).append("\n\n");
                 } catch (Exception e) {
-                    log.error("转换文件失败：{}", sourceFile.getOriginalName(), e);
-                    failedCount++;
-                    resultBuilder.append("❌ **").append(sourceFile.getOriginalName())
-                                .append("**：转换失败 - ").append(e.getMessage()).append("\n");
+                    log.error("获取转换结果失败", e);
+                    resultBuilder.append("文档").append(i + 1).append("：获取失败\n\n");
                 }
             }
-            
-            // 构建最终结果
-            StringBuilder finalResult = new StringBuilder();
-            String sectionName = getSectionDisplayName(targetSection);
-            
-            if (files.size() == 1) {
-                // 单个文件转换
-                if (successCount > 0) {
-                    File convertedFile = files.get(0);
-                    String actualTargetFormat = determineTargetFormat(convertedFile, targetFormat);
-                    finalResult.append("✅ 格式转换已完成！\n\n");
-                    finalResult.append("📄 源文件：").append(convertedFile.getOriginalName()).append("\n");
-                    finalResult.append("📑 目标格式：").append(actualTargetFormat).append("\n");
-                    finalResult.append("💾 保存位置：结果区（result）\n\n");
-                    finalResult.append("转换后的文件已保存到结果区，您可以随时查看或下载。");
-                } else {
-                    finalResult.append("❌ 格式转换失败\n\n");
-                    finalResult.append(resultBuilder.toString());
-                }
-            } else {
-                // 批量文件转换
-                finalResult.append("📊 批量格式转换完成！\n\n");
-                finalResult.append("✅ 成功：").append(successCount).append(" 个文件\n");
-                if (failedCount > 0) {
-                    finalResult.append("❌ 失败：").append(failedCount).append(" 个文件\n");
-                }
-                finalResult.append("\n转换详情：\n").append(resultBuilder.toString());
-                
-                if (successCount > 0) {
-                    finalResult.append("\n所有转换成功的文件已保存到结果区，您可以随时查看或下载。");
-                }
+
+            // 3. 添加综合说明
+            if (files.size() > 1) {
+                resultBuilder.append("📊 综合分析：以上 ").append(files.size()).append(" 个文档已分别完成转换。\n");
             }
-            
-            return finalResult.toString();
-            
+
+            return resultBuilder.toString();
+
         } catch (Exception e) {
-            log.error("批量转换文件失败", e);
+            log.error("批量转换失败", e);
             return "批量转换失败：" + e.getMessage();
         }
     }

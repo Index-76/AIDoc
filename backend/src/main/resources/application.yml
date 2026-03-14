@@ -37,13 +37,6 @@ sa-token:
   # 当前会话注销时是否删除token信息
   is-delete-token: true
 
-# 通用MyBatis配置
-mybatis:
-  mapper-locations: classpath:mapper/*.xml
-  type-aliases-package: com.project.aidoc.entity
-  configuration:
-    map-underscore-to-camel-case: true
-
 # 通用API配置
 api:
   prefix: /api/v1
@@ -65,23 +58,11 @@ spring:
   data:
     mongodb:
       uri: mongodb://localhost:27017/aidoc_dev
-  datasource:
-    url: jdbc:mysql://localhost:3306/aidoc_dev?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true
-    username: root
-    password: 123456
-    driver-class-name: com.mysql.cj.jdbc.Driver
-
-mybatis:
-  configuration:
-    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
-    cache-enabled: false
 
 logging:
   level:
     com.project.aidoc: DEBUG
-    org.springframework.security: DEBUG
     org.springframework.data.mongodb: DEBUG
-    org.mybatis: DEBUG
   file:
     name: logs/aidoc_dev.log
 
@@ -97,21 +78,10 @@ spring:
   data:
     mongodb:
       uri: mongodb://${prod_user:prod_user}:${prod_password:prod_password}@prod-mongodb-host:27017/aidoc_prod?authSource=admin
-  datasource:
-    url: jdbc:mysql://prod-mysql-host:3306/aidoc_prod?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=GMT%2B8
-    username: prod_user
-    password: prod_password
-    driver-class-name: com.mysql.cj.jdbc.Driver
-
-mybatis:
-  configuration:
-    cache-enabled: true
 
 logging:
   level:
     com.project.aidoc: WARN
-    org.springframework.security: WARN
     org.springframework.data.mongodb: WARN
-    org.mybatis: WARN
   file:
     name: logs/aidoc_prod.log

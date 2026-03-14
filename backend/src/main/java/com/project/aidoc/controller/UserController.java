@@ -3,7 +3,6 @@ package com.project.aidoc.controller;
 import com.project.aidoc.common.Result;
 import com.project.aidoc.entity.User;
 import com.project.aidoc.service.UserService;
-import com.project.aidoc.mapper.UserMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,14 +23,14 @@ public class UserController {
      * 根据ID获取用户，仅允许用户访问自己的信息
      */
     @GetMapping("/{id}")
-    public Result<User> getUserById(@PathVariable("id") Long id) {
+    public Result<User> getUserById(@PathVariable("id") String id) {
         // 检查用户是否已登录
         if (!cn.dev33.satoken.stp.StpUtil.isLogin()) {
             return Result.error(401, "用户未登录");
         }
         
         // 获取当前登录用户的ID
-        Long currentUserId = Long.parseLong(cn.dev33.satoken.stp.StpUtil.getLoginIdAsString());
+        String currentUserId = cn.dev33.satoken.stp.StpUtil.getLoginIdAsString();
         
         // 检查请求的ID是否与当前登录用户ID匹配
         if (!currentUserId.equals(id)) {
@@ -62,21 +61,21 @@ public class UserController {
      * 更新用户信息，仅允许用户更新自己的信息
      */
     @PutMapping("/{id}")
-    public Result<String> updateUser(@PathVariable("id") Long id, @RequestBody User user) {
+    public Result<String> updateUser(@PathVariable("id") String id, @RequestBody User user) {
         // 检查用户是否已登录
         if (!cn.dev33.satoken.stp.StpUtil.isLogin()) {
             return Result.error(401, "用户未登录");
         }
         
         // 获取当前登录用户的ID
-        Long currentUserId = Long.parseLong(cn.dev33.satoken.stp.StpUtil.getLoginIdAsString());
+        String currentUserId = cn.dev33.satoken.stp.StpUtil.getLoginIdAsString();
         
         // 检查请求的ID是否与当前登录用户ID匹配
         if (!currentUserId.equals(id)) {
             return Result.error(403, "无权更新其他用户信息");
         }
         
-        user.setUserid(id);
+        user.setId(id);
         try {
             userService.updateUser(user);
             return Result.success("用户更新成功");
@@ -89,14 +88,14 @@ public class UserController {
      * 删除用户，仅允许用户删除自己的信息
      */
     @DeleteMapping("/{id}")
-    public Result<String> deleteUser(@PathVariable("id") Long id) {
+    public Result<String> deleteUser(@PathVariable("id") String id) {
         // 检查用户是否已登录
         if (!cn.dev33.satoken.stp.StpUtil.isLogin()) {
             return Result.error(401, "用户未登录");
         }
         
         // 获取当前登录用户的ID
-        Long currentUserId = Long.parseLong(cn.dev33.satoken.stp.StpUtil.getLoginIdAsString());
+        String currentUserId = cn.dev33.satoken.stp.StpUtil.getLoginIdAsString();
         
         // 检查请求的ID是否与当前登录用户ID匹配
         if (!currentUserId.equals(id)) {
@@ -118,12 +117,12 @@ public class UserController {
     public Result<User> getCurrentUser() {
         if (cn.dev33.satoken.stp.StpUtil.isLogin()) {
             try {
-                Long userId = Long.parseLong(cn.dev33.satoken.stp.StpUtil.getLoginIdAsString());
+                String userId = cn.dev33.satoken.stp.StpUtil.getLoginIdAsString();
                 User user = userService.getUserById(userId);
                 if (user != null) {
                     return Result.success(user);
                 }
-            } catch (NumberFormatException e) {
+            } catch (Exception e) {
                 return Result.error(500, "获取用户信息失败");
             }
         }

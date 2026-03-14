@@ -41,8 +41,8 @@ public class AuthController {
             return Result.error(401, "用户不存在");
         }
 
-        // 登录并生成token
-        StpUtil.login(user.getUserid());
+        // 登录并生成 token（使用 MongoDB 的 String ID）
+        StpUtil.login(user.getId());
 
         // 返回登录响应
         LoginResponse response = new LoginResponse(StpUtil.getTokenValue(), user, "登录成功");
@@ -79,11 +79,11 @@ public class AuthController {
             User newUser = userService.createUser(user);
 
             // 登录新用户
-            StpUtil.login(newUser.getUserid());
+            StpUtil.login(newUser.getId());
 
             return Result.success("注册成功");
         } catch (Exception e) {
-            return Result.error(500, "注册失败: " + e.getMessage());
+            return Result.error(500, "注册失败：" + e.getMessage());
         }
     }
 
@@ -101,22 +101,18 @@ public class AuthController {
 
     @GetMapping("/me")
     public Result<User> getCurrentUser() {
-        // 验证token并获取用户信息
+        // 验证 token 并获取用户信息
         if (StpUtil.isLogin()) {
             Object loginId = StpUtil.getLoginId();
             try {
-                // 假设loginId是用户ID，通过ID获取用户
-                Long userId = Long.parseLong(loginId.toString());
+                // loginId 现在是 MongoDB 的 String 类型 ID
+                String userId = loginId.toString();
                 User user = userService.getUserById(userId);
                 if (user != null) {
                     return Result.success(user);
                 }
-            } catch (NumberFormatException e) {
-                // 如果转换失败，可能是其他格式的登录ID
-                User user = userService.getUserByUsername(loginId.toString());
-                if (user != null) {
-                    return Result.success(user);
-                }
+            } catch (Exception e) {
+                return Result.error(401, "获取用户信息失败");
             }
         }
 

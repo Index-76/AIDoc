@@ -579,7 +579,7 @@ public class FormatConverterTool {
     /**
      * 保存转换后的文件到 result 区
      */
-    private String saveConvertedFileToResult(byte[] content, String originalName, String targetFormat, Long userId) throws Exception {
+    private String saveConvertedFileToResult(byte[] content, String originalName, String targetFormat, String userId) throws Exception {
         // 生成新文件名
         String newFileName = System.currentTimeMillis() + "_" + getFileNameWithExtension(originalName, targetFormat);
         String contentType = getContentTypeForFormat(targetFormat);

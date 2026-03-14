@@ -1,6 +1,6 @@
 # AIDoc 项目
 
-AIDoc 是一个集成 Flutter 前端和 Spring Boot 后端的现代化文档管理系统。
+AIDoc 是一个集成 Flutter 前端和 Spring Boot 后端的智能现代化文档管理系统。
 
 ## 项目结构
 
@@ -13,7 +13,6 @@ AIDoc/
 ├── frontend/               # Flutter 前端应用
 │   ├── lib/
 │   ├── web/
-│   ├── windows/
 │   ├── pubspec.yaml
 │   └── ...
 ├── docs/                   # 项目文档
@@ -23,8 +22,8 @@ AIDoc/
 ## 技术栈
 
 - **前端**: Flutter
-- **后端**: Spring Boot + MyBatis
-- **数据库**: MongoDB + MySQL
+- **后端**: Spring Boot
+- **数据库**: MongoDB
 - **安全框架**: SaToken
 - **构建工具**: Maven (后端), pub (前端)
 
@@ -34,7 +33,6 @@ AIDoc/
 - Maven 3.6+
 - Flutter 3.0+
 - MongoDB 4.0+
-- MySQL 5.7+ (用于 MyBatis)
 
 ## 部署步骤
 
@@ -58,6 +56,8 @@ flutter build web --no-wasm-dry-run
 xcopy /E /I /Y "frontend\build\web" "backend\src\main\resources\static"
 ```
 
+或者直接运行copy_frontend_to_backend.bat
+
 **Linux/macOS:**
 
 ```bash
@@ -66,7 +66,7 @@ cp -r frontend/build/web/* backend/src/main/resources/static/
 
 #### 3. 启动后端服务
 
-1. 确保 MongoDB 和 MySQL 服务已启动
+1. 确保 MongoDB 服务已启动
 2. 修改 `backend/src/main/resources/application.yml` 中的数据库连接配置
 3. 在 `backend` 目录下运行:
 
@@ -74,7 +74,7 @@ cp -r frontend/build/web/* backend/src/main/resources/static/
 mvn clean compile spring-boot:run
 ```
 
-后端服务将在 `http://localhost:8080` 启动，可以直接访问 Web 前端或使用 API。
+后端服务默认将在 `http://localhost:8080` 启动，可以直接访问 Web 前端或使用 API。
 
 #### 4. 桌面应用
 
@@ -90,7 +90,7 @@ flutter build windows
 
 ### 后端开发
 
-1. 启动 MongoDB 和 MySQL 服务
+1. 启动 MongoDB 服务
 2. 修改 `backend/src/main/resources/application.yml` 中的数据库连接配置
 3. 在 `backend` 目录下运行:
 
@@ -115,10 +115,6 @@ flutter run
 ## API 文档
 
 后端 API 文档请参考 `docs/AIDOC-api-v1.md`
-
-## SQL 文档
-
-Mysql 配置参考 `docs/database_schema.sql`
 
 ## 测试
 

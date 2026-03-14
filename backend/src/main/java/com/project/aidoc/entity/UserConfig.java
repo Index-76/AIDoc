@@ -7,6 +7,9 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
 
+/**
+ * 用户配置实体类
+ */
 @Document(collection = "user_configs")
 @Data
 public class UserConfig {
@@ -14,9 +17,9 @@ public class UserConfig {
     private String id;
 
     @Indexed
-    private Long userId; // 所属用户ID
+    private String userId; // 所属用户 ID (MongoDB ObjectId)
 
-    // 硅基流动API配置
+    // 硅基流动 API 配置
     private String siliconFlowApiKey;
     private String siliconFlowBaseUrl;
     private String chatModelName;

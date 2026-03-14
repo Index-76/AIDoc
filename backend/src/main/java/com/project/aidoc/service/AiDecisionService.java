@@ -31,8 +31,8 @@ public class AiDecisionService {
      * @param sessionId   会话ID
      * @return 决策结果
      */
-    public AiDecisionResult makeDecision(Long userId, String userMessage, String sessionId) {
-        log.info("开始AI决策，用户ID: {}, 会话ID: {}, 用户消息: {}", userId, sessionId, userMessage);
+    public AiDecisionResult makeDecision(String userId, String userMessage, String sessionId) {
+        log.info("开始 AI 决策，用户 ID: {}, 会话 ID: {}, 用户消息：{}", userId, sessionId, userMessage);
 
         // 控制是否执行预处理逻辑
         boolean needPreprocess = true;
@@ -141,9 +141,9 @@ public class AiDecisionService {
     /**
      * 调用决策AI
      */
-    private int callDecisionAi(Long userId, String userMessage, String sessionId) {
+    private int callDecisionAi(String userId, String userMessage, String sessionId) {
         try {
-            // 获取决策AI配置
+            // 获取决策AI 配置
             String decisionAiApi = systemConfigManager.getDecisionAiApi(userId);
             String decisionAiKey = systemConfigManager.getDecisionAiKey(userId);
             String decisionAiModel = systemConfigManager.getDecisionAiModel(userId); // 使用用户配置的模型

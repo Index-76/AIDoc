@@ -30,7 +30,7 @@ public class WordTableExtractorUtil {
      * @return 包含表格信息的 Map，结构同原 TxtToWord.extractTableInfo 返回值
      * @throws Exception 提取失败时抛出
      */
-    public static Map<String, Object> extractTables(File templateFile, Long userId, FileService fileService) throws Exception {
+    public static Map<String, Object> extractTables(File templateFile, String userId, FileService fileService) throws Exception {
         log.info("提取 Word 模板表格信息");
 
         byte[] templateContent = fileService.getFileContent(templateFile.getId(), userId);

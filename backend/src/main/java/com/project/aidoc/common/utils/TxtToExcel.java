@@ -43,7 +43,7 @@ public class TxtToExcel {
      * @param userConfigService 用户配置服务（用于获取 API Key）
      * @return 处理结果描述
      */
-    public static String process(File readFile, File templateFile, Long userId, 
+    public static String process(File readFile, File templateFile, String userId, 
                                   FileService fileService, UserConfigService userConfigService) {
         // 用于记录所有已创建的临时文件 ID
         Set<String> tempFileIds = new HashSet<>();
@@ -253,7 +253,7 @@ public class TxtToExcel {
     /**
      * 步骤 2: 创建模板副本
      */
-    private static String createTemplateCopy(File templateFile, Long userId, FileService fileService) 
+    private static String createTemplateCopy(File templateFile, String userId, FileService fileService) 
             throws Exception {
         log.info("步骤 2: 创建模板副本");
         
@@ -319,7 +319,7 @@ public class TxtToExcel {
      * @return 找到的文件对象，未找到返回 null
      */
     private static File findFileByFileName(String readFileId, String targetFileName, 
-                                           Long userId, FileService fileService) {
+                                           String userId, FileService fileService) {
         try {
             // 从 temp 区查找所有文件
             List<File> tempFiles = fileService.getFilesByUserIdAndSection(userId, "temp");
@@ -396,7 +396,7 @@ public class TxtToExcel {
      * 文件命名格式：{readFileId}_段落{x}.txt
      */
     private static void saveSegmentsToResult(List<TextSegment> segments, String readFileId, 
-                                              Long userId, FileService fileService) throws Exception {
+                                              String userId, FileService fileService) throws Exception {
         for (TextSegment segment : segments) {
             try {
                 // 生成文件名：{readFileId}_段落{x}.txt
@@ -428,7 +428,7 @@ public class TxtToExcel {
      */
     private static Map<Integer, Map<Integer, String>> extractDataWithAI(
             List<TextSegment> segments, Map<String, Object> headerInfo,
-            Long userId, FileService fileService, UserConfigService userConfigService,
+            String userId, FileService fileService, UserConfigService userConfigService,
             String originalTemplateFileId) throws Exception {
         log.info("步骤 4: 并行 AI 提取数据");
         
@@ -558,7 +558,7 @@ public class TxtToExcel {
      * 保存 AI 提取结果到临时文件（返回文件 ID）
      */
     private static String saveAIResultToTemp(SegmentResult result, int segmentId, int sheetId,
-                                             String templateFileId, Long userId, FileService fileService) throws Exception {
+                                             String templateFileId, String userId, FileService fileService) throws Exception {
         // 将结果序列化为 JSON
         ObjectMapper mapper = new ObjectMapper();
         String jsonContent = mapper.writeValueAsString(result);
@@ -586,7 +586,7 @@ public class TxtToExcel {
      */
     private static SegmentResult callAIForSegment(TextSegment segment, 
                                                    Map<String, Object> sheetInfo,
-                                                   Long userId, FileService fileService,
+                                                   String userId, FileService fileService,
                                                    UserConfigService userConfigService) throws Exception {
         String sheetName = (String) sheetInfo.get("sheetName");
         List<String> headers = (List<String>) sheetInfo.get("headers");
@@ -651,7 +651,7 @@ public class TxtToExcel {
     /**
      * 从用户配置中获取 API Key
      */
-    private static String getApiKeyFromUserConfig(Long userId, UserConfigService userConfigService) {
+    private static String getApiKeyFromUserConfig(String userId, UserConfigService userConfigService) {
         // 获取用户的配置
         com.project.aidoc.entity.UserConfig userConfig = userConfigService.getUserConfig(userId);
         if (userConfig == null || userConfig.getSiliconFlowApiKey() == null ||
@@ -665,7 +665,7 @@ public class TxtToExcel {
         return userConfig.getSiliconFlowApiKey();
     }
 
-    private static String getApiUrlFromUserConfig(Long userId, UserConfigService userConfigService) {
+    private static String getApiUrlFromUserConfig(String userId, UserConfigService userConfigService) {
         com.project.aidoc.entity.UserConfig userConfig = userConfigService.getUserConfig(userId);
         if (userConfig == null || userConfig.getSiliconFlowBaseUrl() == null ||
                 userConfig.getSiliconFlowBaseUrl().isEmpty()) {
@@ -679,7 +679,7 @@ public class TxtToExcel {
     /**
      * 从用户配置中获取分析模型名称
      */
-    private static String getAnalysisModelNameFromUserConfig(Long userId, UserConfigService userConfigService) {
+    private static String getAnalysisModelNameFromUserConfig(String userId, UserConfigService userConfigService) {
         // 获取用户的配置
         com.project.aidoc.entity.UserConfig userConfig = userConfigService.getUserConfig(userId);
         if (userConfig == null || userConfig.getAnalysisModelName() == null ||
@@ -915,7 +915,7 @@ public class TxtToExcel {
     private static Map<String, List<Object[]>> mergeSegmentData(
             Map<Integer, Map<Integer, String>> resultFileMap,
             Map<String, Object> headerInfo,
-            Long userId, FileService fileService) throws Exception {
+            String userId, FileService fileService) throws Exception {
         log.info("步骤 5: 合并段落数据（按主键分组，聚合合并）");
         
         List<Map<String, Object>> sheets = (List<Map<String, Object>>) headerInfo.get("sheets");
@@ -1191,7 +1191,7 @@ public class TxtToExcel {
      * 步骤 7: 清理与返回
      */
     private static void cleanupAndFinish(String filledFileId, String templateFileId,
-                                         Long userId, FileService fileService) throws Exception {
+                                         String userId, FileService fileService) throws Exception {
         log.info("步骤 7: 清理临时文件并移动结果");
         
         File filledFile = fileService.getFileById(filledFileId, userId);
@@ -1220,7 +1220,7 @@ public class TxtToExcel {
      * 批量删除 AI 结果临时文件
      */
     private static void deleteAIResultFiles(String templateFileId, String section, 
-                                            Long userId, FileService fileService) throws Exception {
+                                            String userId, FileService fileService) throws Exception {
         List<File> tempFiles = fileService.getFilesByUserIdAndSection(userId, section);
         String aiResultPrefix = templateFileId + AI_RESULT_FILE_PREFIX;
         
@@ -1238,7 +1238,7 @@ public class TxtToExcel {
      * 根据文件名删除文件（用于清理临时文件）
      */
     private static void deleteFileByName(String fileName, String section, 
-                                         Long userId, FileService fileService) throws Exception {
+                                         String userId, FileService fileService) throws Exception {
         List<File> files = fileService.getFilesByUserIdAndSection(userId, section);
         for (File file : files) {
             if (file.getFileName().equals(fileName) || file.getOriginalName().equals(fileName)) {

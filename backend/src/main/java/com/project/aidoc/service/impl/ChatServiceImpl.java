@@ -49,17 +49,17 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
-    public List<ChatMessage> getChatHistoryByUserId(Long userId) {
+    public List<ChatMessage> getChatHistoryByUserId(String userId) {
         return chatMessageRepository.findByUserIdOrderByTimestampAsc(userId);
     }
 
     @Override
-    public List<ChatMessage> getChatHistoryByUserIdAndSession(Long userId, String sessionId) {
+    public List<ChatMessage> getChatHistoryByUserIdAndSession(String userId, String sessionId) {
         return chatMessageRepository.findByUserIdAndSessionIdOrderByTimestampAsc(userId, sessionId);
     }
 
     @Override
-    public ChatMessage saveMessage(Long userId, String sessionId, String content, String senderType) {
+    public ChatMessage saveMessage(String userId, String sessionId, String content, String senderType) {
         ChatMessage message = new ChatMessage();
         message.setUserId(userId);
         message.setSessionId(sessionId);
@@ -70,12 +70,12 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
-    public void clearChatHistoryByUserId(Long userId) {
+    public void clearChatHistoryByUserId(String userId) {
         chatMessageRepository.deleteByUserId(userId);
     }
 
     @Override
-    public String processMessage(Long userId, String sessionId, String message) {
+    public String processMessage(String userId, String sessionId, String message) {
         // 保存用户消息
         saveMessage(userId, sessionId, message, "USER");
 
@@ -90,12 +90,12 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     @Async
-    public void processMessageAsync(Long userId, String sessionId, String message) {
+    public void processMessageAsync(String userId, String sessionId, String message) {
         try {
             // 保存用户消息到数据库
             ChatMessage userMessage = saveMessage(userId, sessionId, message, "USER");
 
-            // 执行AI决策
+            // 执行 AI 决策
             AiDecisionResult decisionResult = aiDecisionService.makeDecision(userId, message, sessionId);
             int toolCode = decisionResult.getToolCode();
 
@@ -141,7 +141,7 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
-    public void createWelcomeMessage(Long userId, String sessionId) {
+    public void createWelcomeMessage(String userId, String sessionId) {
         // 创建欢迎消息
         ChatMessage welcomeMessage = new ChatMessage();
         welcomeMessage.setUserId(userId);
@@ -153,17 +153,17 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
-    public Set<String> getAllSessionIdsByUserId(Long userId) {
+    public Set<String> getAllSessionIdsByUserId(String userId) {
         // 获取用户的所有消息，按时间升序排列
         List<ChatMessage> allMessages = chatMessageRepository.findByUserIdOrderByTimestampAsc(userId);
 
-        // 使用 LinkedHashMap 保持插入顺序，按session首次出现的时间排序
+        // 使用 LinkedHashMap 保持插入顺序，按 session 首次出现的时间排序
         Map<String, LocalDateTime> sessionFirstSeen = new LinkedHashMap<>();
 
         for (ChatMessage message : allMessages) {
             String sessionId = message.getSessionId();
             if (sessionId != null && !sessionId.isEmpty()) {
-                // 如果session第一次出现，记录其首次出现时间
+                // 如果 session 第一次出现，记录其首次出现时间
                 if (!sessionFirstSeen.containsKey(sessionId)) {
                     sessionFirstSeen.put(sessionId, message.getTimestamp());
                 }
@@ -178,13 +178,13 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
-    public void deleteSessionBySessionId(Long userId, String sessionId) {
+    public void deleteSessionBySessionId(String userId, String sessionId) {
         // 检查会话是否存在
         List<ChatMessage> sessionMessages = chatMessageRepository.findByUserIdAndSessionIdOrderByTimestampAsc(userId,
                 sessionId);
 
         if (sessionMessages.isEmpty()) {
-            throw new IllegalArgumentException("会话不存在: " + sessionId);
+            throw new IllegalArgumentException("会话不存在：" + sessionId);
         }
 
         // 会话存在，执行删除操作
@@ -192,14 +192,14 @@ public class ChatServiceImpl implements ChatService {
     }
 
     /**
-     * 调用AI服务（带工具结果）
+     * 调用 AI 服务（带工具结果）
      */
-    private String callAIServiceWithTools(Long userId, String sessionId, String userMessage, String toolResult) {
+    private String callAIServiceWithTools(String userId, String sessionId, String userMessage, String toolResult) {
         // 获取用户的配置
         UserConfig userConfig = userConfigService.getUserConfig(userId);
         if (userConfig == null || userConfig.getSiliconFlowApiKey() == null ||
                 userConfig.getSiliconFlowApiKey().isEmpty()) {
-            return "请先配置硅基流动API密钥";
+            return "请先配置AI-API密钥";
         }
 
         try {
@@ -216,8 +216,8 @@ public class ChatServiceImpl implements ChatService {
             systemMsg.put("role", "system");
             systemMsg.put("content", "你是AI助手，专门帮助用户管理文档和解答相关问题。你可以使用以下工具：\n" +
                     "1. 目录查看 - 查看文件目录结构\n" +
-                    "2. 内容总结 - 总结文档内容\n" +
-                    "3. 格式转换 - 转换文件格式\n" +
+                    "2. 内容总结 - 总结文档内容（仅支持word、md、txt）\n" +
+                    "3. 格式转换 - 转换文件格式（有且仅有对word、md、excel、txt到pdf，pdf到word的支持）\n" +
                     "4. 智能填表 - 自动填写表格\n" +
                     "5. 智能修改 - 智能编辑文档\n" +
                     "当用户需要使用这些功能时，请严格按照工具执行结果的格式进行回复，不要重新组织语言。\n" +
@@ -293,9 +293,9 @@ public class ChatServiceImpl implements ChatService {
     }
 
     /**
-     * 原有的AI服务调用方法（保持兼容性）
+     * 原有的 AI 服务调用方法（保持兼容性）
      */
-    private String callAIService(Long userId, String sessionId, String message) {
+    private String callAIService(String userId, String sessionId, String message) {
         return callAIServiceWithTools(userId, sessionId, message, "");
     }
 }

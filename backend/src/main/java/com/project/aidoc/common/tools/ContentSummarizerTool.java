@@ -56,10 +56,10 @@ public class ContentSummarizerTool {
      * 
      * @param filePath            文件路径
      * @param summaryRequirements 总结要求
-     * @param userId              用户 ID
+     * @param userId              用户 ID (String ObjectId)
      * @return 总结内容 Map
      */
-    public Map<String, Object> summarizeContent(String filePath, String summaryRequirements, Long userId) {
+    public Map<String, Object> summarizeContent(String filePath, String summaryRequirements, String userId) {
         log.info("开始总结内容：filePath={}, requirements={}, userId={}", filePath, summaryRequirements, userId);
 
         try {
@@ -155,7 +155,7 @@ public class ContentSummarizerTool {
     /**
      * 在 temp 区域查找缓存的总结文件
      */
-    private File findCachedSummary(String sourceFileId, String cacheFileName, Long userId) {
+    private File findCachedSummary(String sourceFileId, String cacheFileName, String userId) {
         try {
             // 获取当前用户的所有 temp 区域文件
             List<File> tempFiles = fileService.getFilesByUserIdAndSection(userId, "temp");
@@ -177,7 +177,7 @@ public class ContentSummarizerTool {
     /**
      * 获取文件内容并转换为字符串
      */
-    private String getFileContentAsString(String fileId, Long userId) {
+    private String getFileContentAsString(String fileId, String userId) {
         try {
             byte[] content = fileService.getFileContent(fileId, userId);
             if (content != null && content.length > 0) {
@@ -213,14 +213,14 @@ public class ContentSummarizerTool {
     }
 
     /**
-     * 调用 AI 进行内容总结
-     * 
-     * @param content      内容
+     * 调用 AI 获取总结内容
+     *
+     * @param content     文件内容
      * @param requirements 总结要求
-     * @param userId       用户 ID
+     * @param userId      用户 ID (String ObjectId)
      * @return AI 生成的总结内容
      */
-    private String callAiForSummary(String content, String requirements, Long userId) {
+    private String callAiForSummary(String content, String requirements, String userId) {
         try {
             // 构建提示词
             String prompt = buildSummaryPrompt(content, requirements);
@@ -328,7 +328,7 @@ public class ContentSummarizerTool {
      * @param userId         用户ID
      * @return 保存后的文件实体
      */
-    private File saveSummaryToTemp(String sourceFileId, String cacheFileName, String summaryContent, Long userId) {
+    private File saveSummaryToTemp(String sourceFileId, String cacheFileName, String summaryContent, String userId) {
         try {
             // 生成原始名称
             String originalName = "[" + sourceFileId + "]_summary.json";
@@ -376,10 +376,10 @@ public class ContentSummarizerTool {
     /**
      * 获取 API Key（从用户配置中获取）
      * 
-     * @param userId 用户 ID
-     * @return API密钥，如果未配置则返回 null
+     * @param userId 用户 ID (String ObjectId)
+     * @return API 密钥，如果未配置则返回 null
      */
-    private String getApiKey(Long userId) {
+    private String getApiKey(String userId) {
         // 从 MongoDB 中获取用户的配置
         UserConfig config = userConfigService.getUserConfig(userId);
         if (config != null && config.getSiliconFlowApiKey() != null && !config.getSiliconFlowApiKey().isEmpty()) {

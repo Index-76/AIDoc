@@ -37,11 +37,11 @@ public class SmartFormFillerTool {
     /**
      * 执行智能填表功能
      * 
-     * @param userId      用户 ID
+     * @param userId      用户 ID (String ObjectId)
      * @param userMessage 用户消息
      * @return 执行结果
      */
-    public String executeFillForm(Long userId, String userMessage) {
+    public String executeFillForm(String userId, String userMessage) {
         log.info("开始执行智能填表功能，用户 ID: {}", userId);
 
         try {

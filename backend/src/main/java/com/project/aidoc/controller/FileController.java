@@ -30,7 +30,7 @@ public class FileController {
             return Result.error(401, "用户未登录");
         }
 
-        Long userId = Long.parseLong(StpUtil.getLoginIdAsString());
+        String userId = StpUtil.getLoginIdAsString();
         List<File> files = fileService.getFilesByUserId(userId);
         return Result.success(files);
     }
@@ -60,11 +60,11 @@ public class FileController {
         }
 
         try {
-            Long userId = Long.parseLong(StpUtil.getLoginIdAsString());
+            String userId = StpUtil.getLoginIdAsString();
             File savedFile = fileService.saveFile(multipartFile, section, userId);
             return Result.success(savedFile);
         } catch (Exception e) {
-            return Result.error(500, "上传失败: " + e.getMessage());
+            return Result.error(500, "上传失败：" + e.getMessage());
         }
     }
 
@@ -75,7 +75,7 @@ public class FileController {
         }
 
         try {
-            Long userId = Long.parseLong(StpUtil.getLoginIdAsString());
+            String userId = StpUtil.getLoginIdAsString();
 
             // 先获取文件信息以获取原始文件名
             com.project.aidoc.entity.File fileInfo = fileService.getFileById(fileId, userId);
@@ -181,7 +181,7 @@ public class FileController {
             return Result.error(401, "用户未登录");
         }
 
-        Long userId = Long.parseLong(StpUtil.getLoginIdAsString());
+        String userId = StpUtil.getLoginIdAsString();
 
         try {
             fileService.deleteFileById(fileId, userId);
@@ -197,7 +197,7 @@ public class FileController {
             return Result.error(401, "用户未登录");
         }
 
-        Long userId = Long.parseLong(StpUtil.getLoginIdAsString());
+        String userId = StpUtil.getLoginIdAsString();
         File movedFile = fileService.moveFileToSection(fileId, request.getDestinationSectionId(), userId);
 
         if (movedFile != null) {
@@ -213,7 +213,7 @@ public class FileController {
             return Result.error(401, "用户未登录");
         }
 
-        Long userId = Long.parseLong(StpUtil.getLoginIdAsString());
+        String userId = StpUtil.getLoginIdAsString();
         File renamedFile = fileService.renameFile(fileId, request.getNewName(), userId);
 
         if (renamedFile != null) {

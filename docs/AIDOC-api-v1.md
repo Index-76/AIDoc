@@ -16,7 +16,6 @@ code_clipboard: true
 highlight_theme: darkula
 headingLevel: 2
 generator: "@tarslib/widdershins v4.0.30"
-
 ---
 
 # AIDOC-api-v1
@@ -42,9 +41,9 @@ POST /api/v1/auth/login
 
 ### 请求参数
 
-|名称|位置|类型|必选|说明|
-|---|---|---|---|---|
-|body|body|object| 是 |none|
+| 名称 | 位置 | 类型   | 必选 | 说明 |
+| ---- | ---- | ------ | ---- | ---- |
+| body | body | object | 是   | none |
 
 > 返回示例
 
@@ -72,9 +71,9 @@ POST /api/v1/auth/login
 
 ### 返回结果
 
-|状态码|状态码含义|说明|数据模型|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+| 状态码 | 状态码含义                                              | 说明 | 数据模型 |
+| ------ | ------------------------------------------------------- | ---- | -------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | none | Inline   |
 
 ### 返回数据结构
 
@@ -96,9 +95,9 @@ POST /api/v1/auth/logout
 
 ### 返回结果
 
-|状态码|状态码含义|说明|数据模型|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+| 状态码 | 状态码含义                                              | 说明 | 数据模型 |
+| ------ | ------------------------------------------------------- | ---- | -------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | none | Inline   |
 
 ### 返回数据结构
 
@@ -128,9 +127,9 @@ GET /api/v1/users/me
 
 ### 返回结果
 
-|状态码|状态码含义|说明|数据模型|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+| 状态码 | 状态码含义                                              | 说明 | 数据模型 |
+| ------ | ------------------------------------------------------- | ---- | -------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | none | Inline   |
 
 ### 返回数据结构
 
@@ -150,9 +149,9 @@ POST /api/v1/auth/register
 
 ### 请求参数
 
-|名称|位置|类型|必选|说明|
-|---|---|---|---|---|
-|body|body|object| 是 |none|
+| 名称 | 位置 | 类型   | 必选 | 说明 |
+| ---- | ---- | ------ | ---- | ---- |
+| body | body | object | 是   | none |
 
 > 返回示例
 
@@ -168,9 +167,9 @@ POST /api/v1/auth/register
 
 ### 返回结果
 
-|状态码|状态码含义|说明|数据模型|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+| 状态码 | 状态码含义                                              | 说明 | 数据模型 |
+| ------ | ------------------------------------------------------- | ---- | -------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | none | Inline   |
 
 ### 返回数据结构
 
@@ -186,15 +185,15 @@ GET /api/v1/user-config
 {
   "code": 200,
   "msg": "success",
-  "data": "{\r\n  \"siliconFlowApiKey\" : \"\",\r\n  \"siliconFlowBaseUrl\" : \"https://api.siliconflow.cn/v1/chat/completions\",\r\n  \"chatModelName\" : \"deepseek-ai/DeepSeek-V3.2\",\r\n  \"decisionModelName\" : \"Qwen/Qwen2.5-7B-Instruct\",\r\n  \"analysisModelName\" : \"deepseek-ai/DeepSeek-V3.2\",\r\n  \"databaseUrl\" : \"\",\r\n  \"databaseUsername\" : \"\",\r\n  \"databasePassword\" : \"\",\r\n  \"databaseName\" : \"\",\r\n  \"databaseTableName\" : \"\",\r\n  \"databaseType\" : \"mysql\"\r\n}"
+  "data": "{\r\n  \"siliconFlowApiKey\" : \"\",\r\n  \"siliconFlowBaseUrl\" : \"https://api.siliconflow.cn/v1/chat/completions\",\r\n  \"chatModelName\" : \"deepseek-ai/DeepSeek-V3.2\",\r\n  \"decisionModelName\" : \"Qwen/Qwen2.5-7B-Instruct\",\r\n  \"analysisModelName\" : \"deepseek-ai/DeepSeek-V3.2\",\r\n}"
 }
 ```
 
 ### 返回结果
 
-|状态码|状态码含义|说明|数据模型|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+| 状态码 | 状态码含义                                              | 说明 | 数据模型 |
+| ------ | ------------------------------------------------------- | ---- | -------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | none | Inline   |
 
 ### 返回数据结构
 
@@ -216,9 +215,9 @@ POST /api/v1/user-config
 
 ### 请求参数
 
-|名称|位置|类型|必选|说明|
-|---|---|---|---|---|
-|body|body|object| 是 |none|
+| 名称 | 位置 | 类型   | 必选 | 说明 |
+| ---- | ---- | ------ | ---- | ---- |
+| body | body | object | 是   | none |
 
 > 返回示例
 
@@ -240,9 +239,9 @@ POST /api/v1/user-config
 
 ### 返回结果
 
-|状态码|状态码含义|说明|数据模型|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+| 状态码 | 状态码含义                                              | 说明 | 数据模型 |
+| ------ | ------------------------------------------------------- | ---- | -------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | none | Inline   |
 
 ### 返回数据结构
 
@@ -262,9 +261,9 @@ GET /api/v1/files
 
 ### 返回结果
 
-|状态码|状态码含义|说明|数据模型|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+| 状态码 | 状态码含义                                              | 说明 | 数据模型 |
+| ------ | ------------------------------------------------------- | ---- | -------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | none | Inline   |
 
 ### 返回数据结构
 
@@ -277,16 +276,15 @@ POST /api/v1/files/upload
 ```yaml
 section: read
 file: file://D:\下载\默认模块.md
-
 ```
 
 ### 请求参数
 
-|名称|位置|类型|必选|说明|
-|---|---|---|---|---|
-|body|body|object| 是 |none|
-|» section|body|string| 否 |none|
-|» file|body|string(binary)| 否 |none|
+| 名称      | 位置 | 类型           | 必选 | 说明 |
+| --------- | ---- | -------------- | ---- | ---- |
+| body      | body | object         | 是   | none |
+| » section | body | string         | 否   | none |
+| » file    | body | string(binary) | 否   | none |
 
 > 返回示例
 
@@ -298,9 +296,9 @@ file: file://D:\下载\默认模块.md
 
 ### 返回结果
 
-|状态码|状态码含义|说明|数据模型|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+| 状态码 | 状态码含义                                              | 说明 | 数据模型 |
+| ------ | ------------------------------------------------------- | ---- | -------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | none | Inline   |
 
 ### 返回数据结构
 
@@ -310,9 +308,9 @@ GET /api/v1/files/{fileId}/download
 
 ### 请求参数
 
-|名称|位置|类型|必选|说明|
-|---|---|---|---|---|
-|fileId|path|string| 是 |none|
+| 名称   | 位置 | 类型   | 必选 | 说明 |
+| ------ | ---- | ------ | ---- | ---- |
+| fileId | path | string | 是   | none |
 
 > 返回示例
 
@@ -324,9 +322,9 @@ GET /api/v1/files/{fileId}/download
 
 ### 返回结果
 
-|状态码|状态码含义|说明|数据模型|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+| 状态码 | 状态码含义                                              | 说明 | 数据模型 |
+| ------ | ------------------------------------------------------- | ---- | -------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | none | Inline   |
 
 ### 返回数据结构
 
@@ -336,9 +334,9 @@ DELETE /api/v1/files/{fileId}/delete
 
 ### 请求参数
 
-|名称|位置|类型|必选|说明|
-|---|---|---|---|---|
-|fileId|path|string| 是 |none|
+| 名称   | 位置 | 类型   | 必选 | 说明 |
+| ------ | ---- | ------ | ---- | ---- |
+| fileId | path | string | 是   | none |
 
 > 返回示例
 
@@ -350,9 +348,9 @@ DELETE /api/v1/files/{fileId}/delete
 
 ### 返回结果
 
-|状态码|状态码含义|说明|数据模型|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+| 状态码 | 状态码含义                                              | 说明 | 数据模型 |
+| ------ | ------------------------------------------------------- | ---- | -------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | none | Inline   |
 
 ### 返回数据结构
 
@@ -370,10 +368,10 @@ POST /api/v1/files/{fileId}/move
 
 ### 请求参数
 
-|名称|位置|类型|必选|说明|
-|---|---|---|---|---|
-|fileId|path|string| 是 |none|
-|body|body|object| 是 |none|
+| 名称   | 位置 | 类型   | 必选 | 说明 |
+| ------ | ---- | ------ | ---- | ---- |
+| fileId | path | string | 是   | none |
+| body   | body | object | 是   | none |
 
 > 返回示例
 
@@ -385,9 +383,9 @@ POST /api/v1/files/{fileId}/move
 
 ### 返回结果
 
-|状态码|状态码含义|说明|数据模型|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+| 状态码 | 状态码含义                                              | 说明 | 数据模型 |
+| ------ | ------------------------------------------------------- | ---- | -------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | none | Inline   |
 
 ### 返回数据结构
 
@@ -405,10 +403,10 @@ POST /api/v1/files/{fileId}/rename
 
 ### 请求参数
 
-|名称|位置|类型|必选|说明|
-|---|---|---|---|---|
-|fileId|path|string| 是 |none|
-|body|body|object| 是 |none|
+| 名称   | 位置 | 类型   | 必选 | 说明 |
+| ------ | ---- | ------ | ---- | ---- |
+| fileId | path | string | 是   | none |
+| body   | body | object | 是   | none |
 
 > 返回示例
 
@@ -420,9 +418,9 @@ POST /api/v1/files/{fileId}/rename
 
 ### 返回结果
 
-|状态码|状态码含义|说明|数据模型|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+| 状态码 | 状态码含义                                              | 说明 | 数据模型 |
+| ------ | ------------------------------------------------------- | ---- | -------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | none | Inline   |
 
 ### 返回数据结构
 
@@ -443,9 +441,9 @@ POST /api/v1/chat/message
 
 ### 请求参数
 
-|名称|位置|类型|必选|说明|
-|---|---|---|---|---|
-|body|body|object| 是 |none|
+| 名称 | 位置 | 类型   | 必选 | 说明 |
+| ---- | ---- | ------ | ---- | ---- |
+| body | body | object | 是   | none |
 
 > 返回示例
 
@@ -457,9 +455,9 @@ POST /api/v1/chat/message
 
 ### 返回结果
 
-|状态码|状态码含义|说明|数据模型|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+| 状态码 | 状态码含义                                              | 说明 | 数据模型 |
+| ------ | ------------------------------------------------------- | ---- | -------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | none | Inline   |
 
 ### 返回数据结构
 
@@ -477,9 +475,9 @@ POST /api/v1/chat/new
 
 ### 返回结果
 
-|状态码|状态码含义|说明|数据模型|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+| 状态码 | 状态码含义                                              | 说明 | 数据模型 |
+| ------ | ------------------------------------------------------- | ---- | -------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | none | Inline   |
 
 ### 返回数据结构
 
@@ -497,9 +495,9 @@ GET /api/v1/chat/sessionList
 
 ### 返回结果
 
-|状态码|状态码含义|说明|数据模型|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+| 状态码 | 状态码含义                                              | 说明 | 数据模型 |
+| ------ | ------------------------------------------------------- | ---- | -------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | none | Inline   |
 
 ### 返回数据结构
 
@@ -509,9 +507,9 @@ GET /api/v1/chat/session/{sessionId}/history
 
 ### 请求参数
 
-|名称|位置|类型|必选|说明|
-|---|---|---|---|---|
-|sessionId|path|string| 是 |none|
+| 名称      | 位置 | 类型   | 必选 | 说明 |
+| --------- | ---- | ------ | ---- | ---- |
+| sessionId | path | string | 是   | none |
 
 > 返回示例
 
@@ -523,9 +521,9 @@ GET /api/v1/chat/session/{sessionId}/history
 
 ### 返回结果
 
-|状态码|状态码含义|说明|数据模型|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+| 状态码 | 状态码含义                                              | 说明 | 数据模型 |
+| ------ | ------------------------------------------------------- | ---- | -------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | none | Inline   |
 
 ### 返回数据结构
 
@@ -535,9 +533,9 @@ DELETE /api/v1/chat/session/{sessionId}/delete
 
 ### 请求参数
 
-|名称|位置|类型|必选|说明|
-|---|---|---|---|---|
-|sessionId|path|string| 是 |none|
+| 名称      | 位置 | 类型   | 必选 | 说明 |
+| --------- | ---- | ------ | ---- | ---- |
+| sessionId | path | string | 是   | none |
 
 > 返回示例
 
@@ -549,9 +547,9 @@ DELETE /api/v1/chat/session/{sessionId}/delete
 
 ### 返回结果
 
-|状态码|状态码含义|说明|数据模型|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+| 状态码 | 状态码含义                                              | 说明 | 数据模型 |
+| ------ | ------------------------------------------------------- | ---- | -------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | none | Inline   |
 
 ### 返回数据结构
 
@@ -563,9 +561,9 @@ GET /api/v1/sse/connect/{sessionId}
 
 ### 请求参数
 
-|名称|位置|类型|必选|说明|
-|---|---|---|---|---|
-|sessionId|path|string| 是 |none|
+| 名称      | 位置 | 类型   | 必选 | 说明 |
+| --------- | ---- | ------ | ---- | ---- |
+| sessionId | path | string | 是   | none |
 
 > 返回示例
 
@@ -573,9 +571,9 @@ GET /api/v1/sse/connect/{sessionId}
 
 ### 返回结果
 
-|状态码|状态码含义|说明|数据模型|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+| 状态码 | 状态码含义                                              | 说明 | 数据模型 |
+| ------ | ------------------------------------------------------- | ---- | -------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | none | Inline   |
 
 ### 返回数据结构
 
@@ -585,9 +583,9 @@ POST /api/v1/sse/disconnect/{sessionId}
 
 ### 请求参数
 
-|名称|位置|类型|必选|说明|
-|---|---|---|---|---|
-|sessionId|path|string| 是 |none|
+| 名称      | 位置 | 类型   | 必选 | 说明 |
+| --------- | ---- | ------ | ---- | ---- |
+| sessionId | path | string | 是   | none |
 
 > 返回示例
 
@@ -599,9 +597,9 @@ POST /api/v1/sse/disconnect/{sessionId}
 
 ### 返回结果
 
-|状态码|状态码含义|说明|数据模型|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+| 状态码 | 状态码含义                                              | 说明 | 数据模型 |
+| ------ | ------------------------------------------------------- | ---- | -------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | none | Inline   |
 
 ### 返回数据结构
 
@@ -619,9 +617,9 @@ GET /api/v1/sse/connections
 
 ### 返回结果
 
-|状态码|状态码含义|说明|数据模型|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+| 状态码 | 状态码含义                                              | 说明 | 数据模型 |
+| ------ | ------------------------------------------------------- | ---- | -------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | none | Inline   |
 
 ### 返回数据结构
 
@@ -648,9 +646,9 @@ GET /api/v1/health
 
 ### 返回结果
 
-|状态码|状态码含义|说明|数据模型|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+| 状态码 | 状态码含义                                              | 说明 | 数据模型 |
+| ------ | ------------------------------------------------------- | ---- | -------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | none | Inline   |
 
 ### 返回数据结构
 
@@ -671,9 +669,7 @@ GET /api/v1/health
     "name": "string"
   },
   "name": "doggie",
-  "photoUrls": [
-    "string"
-  ],
+  "photoUrls": ["string"],
   "tags": [
     {
       "id": 1,
@@ -682,27 +678,26 @@ GET /api/v1/health
   ],
   "status": "available"
 }
-
 ```
 
 ### 属性
 
-|名称|类型|必选|约束|中文名|说明|
-|---|---|---|---|---|---|
-|id|integer(int64)|true|none||宠物ID编号|
-|category|[Category](#schemacategory)|true|none||分组|
-|name|string|true|none||名称|
-|photoUrls|[string]|true|none||照片URL|
-|tags|[[Tag](#schematag)]|true|none||标签|
-|status|string|true|none||宠物销售状态|
+| 名称      | 类型                        | 必选 | 约束 | 中文名 | 说明         |
+| --------- | --------------------------- | ---- | ---- | ------ | ------------ |
+| id        | integer(int64)              | true | none |        | 宠物ID编号   |
+| category  | [Category](#schemacategory) | true | none |        | 分组         |
+| name      | string                      | true | none |        | 名称         |
+| photoUrls | [string]                    | true | none |        | 照片URL      |
+| tags      | [[Tag](#schematag)]         | true | none |        | 标签         |
+| status    | string                      | true | none |        | 宠物销售状态 |
 
 #### 枚举值
 
-|属性|值|
-|---|---|
-|status|available|
-|status|pending|
-|status|sold|
+| 属性   | 值        |
+| ------ | --------- |
+| status | available |
+| status | pending   |
+| status | sold      |
 
 <h2 id="tocS_Category">Category</h2>
 
@@ -716,15 +711,14 @@ GET /api/v1/health
   "id": 1,
   "name": "string"
 }
-
 ```
 
 ### 属性
 
-|名称|类型|必选|约束|中文名|说明|
-|---|---|---|---|---|---|
-|id|integer(int64)|false|none||分组ID编号|
-|name|string|false|none||分组名称|
+| 名称 | 类型           | 必选  | 约束 | 中文名 | 说明       |
+| ---- | -------------- | ----- | ---- | ------ | ---------- |
+| id   | integer(int64) | false | none |        | 分组ID编号 |
+| name | string         | false | none |        | 分组名称   |
 
 <h2 id="tocS_Tag">Tag</h2>
 
@@ -738,13 +732,11 @@ GET /api/v1/health
   "id": 1,
   "name": "string"
 }
-
 ```
 
 ### 属性
 
-|名称|类型|必选|约束|中文名|说明|
-|---|---|---|---|---|---|
-|id|integer(int64)|false|none||标签ID编号|
-|name|string|false|none||标签名称|
-
+| 名称 | 类型           | 必选  | 约束 | 中文名 | 说明       |
+| ---- | -------------- | ----- | ---- | ------ | ---------- |
+| id   | integer(int64) | false | none |        | 标签ID编号 |
+| name | string         | false | none |        | 标签名称   |

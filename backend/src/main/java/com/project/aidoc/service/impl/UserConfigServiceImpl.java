@@ -6,8 +6,9 @@ import com.project.aidoc.service.UserConfigService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-
+/**
+ * 用户配置服务实现类
+ */
 @Service
 public class UserConfigServiceImpl implements UserConfigService {
 
@@ -15,9 +16,9 @@ public class UserConfigServiceImpl implements UserConfigService {
     private UserConfigRepository userConfigRepository;
 
     @Override
-    public UserConfig getUserConfig(Long userId) {
-        // 查找该用户的所有配置，按创建时间倒序排列，取第一个（最新的）
-        List<UserConfig> configs = userConfigRepository.findByUserIdOrderByCreateTimeDesc(userId);
+    public UserConfig getUserConfig(String userId) {
+        // 查找该用户的所有配置，按创建时间倒序排列，取第一个 (最新的)
+        java.util.List<UserConfig> configs = userConfigRepository.findByUserIdOrderByCreateTimeDesc(userId);
         if (!configs.isEmpty()) {
             return configs.get(0); // 返回最新的配置
         }
@@ -26,14 +27,14 @@ public class UserConfigServiceImpl implements UserConfigService {
     }
 
     @Override
-    public UserConfig saveUserConfig(Long userId, UserConfig config) {
+    public UserConfig saveUserConfig(String userId, UserConfig config) {
         // 确保配置属于当前用户
         config.setUserId(userId);
         return userConfigRepository.save(config);
     }
 
     @Override
-    public UserConfig createDefaultUserConfig(Long userId) {
+    public UserConfig createDefaultUserConfig(String userId) {
         UserConfig defaultConfig = new UserConfig();
         defaultConfig.setUserId(userId);
 

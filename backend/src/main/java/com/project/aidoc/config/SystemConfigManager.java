@@ -17,34 +17,34 @@ public class SystemConfigManager {
     /**
      * 获取指定用户的配置
      */
-    public UserConfig getUserConfig(Long userId) {
+    public UserConfig getUserConfig(String userId) {
         return userConfigService.getUserConfig(userId);
     }
 
     /**
      * 保存用户配置
      */
-    public UserConfig saveUserConfig(Long userId, UserConfig config) {
+    public UserConfig saveUserConfig(String userId, UserConfig config) {
         return userConfigService.saveUserConfig(userId, config);
     }
 
     /**
      * 创建默认用户配置
      */
-    public UserConfig createDefaultUserConfig(Long userId) {
+    public UserConfig createDefaultUserConfig(String userId) {
         return userConfigService.createDefaultUserConfig(userId);
     }
 
     /**
-     * 获取决策AI API地址
+     * 获取决策AI API 地址
      */
-    public String getDecisionAiApi(Long userId) {
+    public String getDecisionAiApi(String userId) {
         UserConfig userConfig = getUserConfig(userId);
         if (userConfig != null && userConfig.getSiliconFlowBaseUrl() != null &&
                 !userConfig.getSiliconFlowBaseUrl().isEmpty()) {
             return userConfig.getSiliconFlowBaseUrl();
         }
-        // 默认API地址
+        // 默认 API 地址
         return "https://api.siliconflow.cn/v1/chat/completions";
     }
 
@@ -59,7 +59,7 @@ public class SystemConfigManager {
     /**
      * 获取决策AI API密钥
      */
-    public String getDecisionAiKey(Long userId) {
+    public String getDecisionAiKey(String userId) {
         UserConfig userConfig = getUserConfig(userId);
         if (userConfig != null && userConfig.getSiliconFlowApiKey() != null) {
             return userConfig.getSiliconFlowApiKey();
@@ -68,9 +68,9 @@ public class SystemConfigManager {
     }
 
     /**
-     * 获取决策AI模型名称
+     * 获取决策AI 模型名称
      */
-    public String getDecisionAiModel(Long userId) {
+    public String getDecisionAiModel(String userId) {
         UserConfig userConfig = getUserConfig(userId);
         if (userConfig != null && userConfig.getDecisionModelName() != null &&
                 !userConfig.getDecisionModelName().isEmpty()) {

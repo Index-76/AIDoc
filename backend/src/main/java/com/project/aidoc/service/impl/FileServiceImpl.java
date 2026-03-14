@@ -31,7 +31,7 @@ public class FileServiceImpl implements FileService {
     private GridFsTemplate gridFsTemplate;
 
     @Override
-    public File saveFile(MultipartFile file, String section, Long userId) throws Exception {
+    public File saveFile(MultipartFile file, String section, String userId) throws Exception {
         // 生成唯一的文件名
         String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
 
@@ -62,7 +62,7 @@ public class FileServiceImpl implements FileService {
      * - TXT: 直接复制到 temp 区域
      * - Word/Markdown: 转换为 TXT 后存入 temp 区域
      */
-    private void processFileConversion(MultipartFile file, String fileId, Long userId) throws Exception {
+    private void processFileConversion(MultipartFile file, String fileId, String userId) throws Exception {
         String originalFilename = file.getOriginalFilename();
         if (originalFilename == null) {
             return;
@@ -102,7 +102,7 @@ public class FileServiceImpl implements FileService {
     /**
      * 将文本内容保存到 MongoDB 的 temp 区域
      */
-    private void saveTextToTemp(byte[] textContent, String sourceFileId, Long userId, String originalName) throws Exception {
+    private void saveTextToTemp(byte[] textContent, String sourceFileId, String userId, String originalName) throws Exception {
         // 生成文件名：【文件 id】_text.txt
         String textFileName = sourceFileId + "_text.txt";
         
@@ -148,17 +148,17 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
-    public List<File> getFilesByUserId(Long userId) {
+    public List<File> getFilesByUserId(String userId) {
         return fileRepository.findByUserId(userId);
     }
 
     @Override
-    public List<File> getFilesByUserIdAndSection(Long userId, String section) {
+    public List<File> getFilesByUserIdAndSection(String userId, String section) {
         return fileRepository.findByUserIdAndSection(userId, section);
     }
 
     @Override
-    public void deleteFileById(String fileId, Long userId) {
+    public void deleteFileById(String fileId, String userId) {
         // 检查文件是否存在
         Optional<File> fileOpt = fileRepository.findById(fileId);
         if (!fileOpt.isPresent() || !fileOpt.get().getUserId().equals(userId)) {
@@ -174,7 +174,7 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
-    public File moveFileToSection(String fileId, String destinationSectionId, Long userId) {
+    public File moveFileToSection(String fileId, String destinationSectionId, String userId) {
         Optional<File> fileOpt = Optional.ofNullable(fileRepository.findById(fileId).orElse(null));
         if (fileOpt.isPresent() && fileOpt.get().getUserId().equals(userId)) {
             File file = fileOpt.get();
@@ -185,7 +185,7 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
-    public File renameFile(String fileId, String newName, Long userId) {
+    public File renameFile(String fileId, String newName, String userId) {
         Optional<File> fileOpt = Optional.ofNullable(fileRepository.findById(fileId).orElse(null));
         if (fileOpt.isPresent() && fileOpt.get().getUserId().equals(userId)) {
             File file = fileOpt.get();
@@ -196,7 +196,7 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
-    public byte[] getFileContent(String fileId, Long userId) {
+    public byte[] getFileContent(String fileId, String userId) {
         Optional<File> fileOpt = Optional.ofNullable(fileRepository.findById(fileId).orElse(null));
         if (fileOpt.isPresent() && fileOpt.get().getUserId().equals(userId)) {
             // 从 GridFS 获取文件内容
@@ -217,7 +217,7 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
-    public File getFileById(String fileId, Long userId) {
+    public File getFileById(String fileId, String userId) {
         Optional<File> fileOpt = fileRepository.findById(fileId);
         if (fileOpt.isPresent() && fileOpt.get().getUserId().equals(userId)) {
             return fileOpt.get();

@@ -8,11 +8,11 @@ import java.util.Set;
 
 @Repository
 public interface ChatMessageRepository extends MongoRepository<ChatMessage, String> {
-    List<ChatMessage> findByUserIdOrderByTimestampAsc(Long userId);
+    List<ChatMessage> findByUserIdOrderByTimestampAsc(String userId);
 
-    List<ChatMessage> findByUserIdAndSessionIdOrderByTimestampAsc(Long userId, String sessionId);
+    List<ChatMessage> findByUserIdAndSessionIdOrderByTimestampAsc(String userId, String sessionId);
 
-    void deleteByUserId(Long userId);
+    void deleteByUserId(String userId);
 
-    void deleteByUserIdAndSessionId(Long userId, String sessionId);
+    void deleteByUserIdAndSessionId(String userId, String sessionId);
 }

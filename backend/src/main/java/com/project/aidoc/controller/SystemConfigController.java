@@ -21,11 +21,11 @@ public class SystemConfigController {
         }
 
         try {
-            Long userId = Long.parseLong(StpUtil.getLoginIdAsString());
+            String userId = StpUtil.getLoginIdAsString();
             UserConfig config = systemConfigManager.getUserConfig(userId);
             return Result.success(config);
         } catch (Exception e) {
-            return Result.error(500, "读取配置失败: " + e.getMessage());
+            return Result.error(500, "读取配置失败：" + e.getMessage());
         }
     }
 
@@ -36,11 +36,11 @@ public class SystemConfigController {
         }
 
         try {
-            Long userId = Long.parseLong(StpUtil.getLoginIdAsString());
+            String userId = StpUtil.getLoginIdAsString();
             systemConfigManager.saveUserConfig(userId, config);
             return Result.success("配置更新成功");
         } catch (Exception e) {
-            return Result.error(500, "保存配置失败: " + e.getMessage());
+            return Result.error(500, "保存配置失败：" + e.getMessage());
         }
     }
 }

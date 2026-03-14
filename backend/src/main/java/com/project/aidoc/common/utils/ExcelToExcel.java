@@ -5,7 +5,7 @@ import com.project.aidoc.service.FileService;
 
 public class ExcelToExcel {
 
-    public static String process(File readFile, File templateFile, Long userId, FileService fileService) {
+    public static String process(File readFile, File templateFile, String userId, FileService fileService) {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'process'");
     }

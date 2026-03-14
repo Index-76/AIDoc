@@ -35,7 +35,7 @@ public class JsonToExcelWriterUtil {
      */
     public static String fillExcelTemplate(String filledFileId, Map<String, List<Object[]>> mergedData,
                                           Map<String, Object> headerInfo,
-                                          Long userId, FileService fileService) throws Exception {
+                                          String userId, FileService fileService) throws Exception {
         log.info("步骤 6: 填充 Excel 模板");
         
         byte[] templateContent = fileService.getFileContent(filledFileId, userId);

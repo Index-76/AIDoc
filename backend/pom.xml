@@ -34,38 +34,19 @@
         </dependency>
 
         <dependency>
-            <groupId>org.mybatis.spring.boot</groupId>
-            <artifactId>mybatis-spring-boot-starter</artifactId>
-            <version>3.0.3</version>
-        </dependency>
-
-        <!-- mybatis相关显式依赖 -->
-        <dependency>
-            <groupId>org.mybatis</groupId>
-            <artifactId>mybatis</artifactId>
-            <version>3.5.14</version>
-        </dependency>
-        
-        <dependency>
-            <groupId>org.mybatis</groupId>
-            <artifactId>mybatis-spring</artifactId>
-            <version>3.0.3</version>
-        </dependency>
-
-        <dependency>
             <groupId>cn.dev33</groupId>
             <artifactId>sa-token-spring-boot3-starter</artifactId>
             <version>1.37.0</version>
         </dependency>
 
-        <!-- Sa-Token核心依赖 -->
+        <!-- Sa-Token 核心依赖 -->
         <dependency>
             <groupId>cn.dev33</groupId>
             <artifactId>sa-token-core</artifactId>
             <version>1.37.0</version>
         </dependency>
 
-        <!-- 显式声明jakarta.servlet-api依赖 -->
+        <!-- 显式声明 jakarta.servlet-api 依赖 -->
         <dependency>
             <groupId>jakarta.servlet</groupId>
             <artifactId>jakarta.servlet-api</artifactId>
@@ -73,7 +54,7 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- JWT支持 -->
+        <!-- JWT 支持 -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>
@@ -92,31 +73,25 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- Jackson databind显式依赖 -->
+        <!-- Jackson databind 显式依赖 -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
             <version>2.15.3</version>
         </dependency>
 
-        <!-- Spring Security用于BCrypt -->
+        <!-- Spring Security 用于 BCrypt -->
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-crypto</artifactId>
         </dependency>
 
-        <!-- Lombok支持 -->
+        <!-- Lombok 支持 -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <version>1.18.32</version>
             <optional>true</optional>
-        </dependency>
-
-        <dependency>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-j</artifactId>
-            <scope>runtime</scope>
         </dependency>
 
         <dependency>

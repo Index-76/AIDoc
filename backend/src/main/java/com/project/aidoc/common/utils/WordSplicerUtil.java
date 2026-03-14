@@ -33,7 +33,7 @@ public class WordSplicerUtil {
      * @throws Exception 填充失败时抛出
      */
     public static String fillWordTemplate(String filledFileId, Map<Integer, List<Object[]>> mergedTableData,
-                                          Map<String, Object> tableInfo, Long userId, FileService fileService,
+                                          Map<String, Object> tableInfo, String userId, FileService fileService,
                                           String templateOriginalName) throws Exception {
         log.info("填充 Word 模板");
 

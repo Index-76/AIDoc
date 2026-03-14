@@ -11,10 +11,10 @@ public class ChatMessage {
     @Id
     private String id;
     
-    private Long userId; // 所属用户ID
-    private String sessionId; // 会话ID
+    private String userId; // 所属用户 ID (String ObjectId)
+    private String sessionId; // 会话 ID
     private String content; // 消息内容
-    private String senderType; // 发送者类型: 'USER' 或 'AI'
+    private String senderType; // 发送者类型：'USER' 或 'AI'
     private LocalDateTime timestamp; // 时间戳
     
     public ChatMessage() {

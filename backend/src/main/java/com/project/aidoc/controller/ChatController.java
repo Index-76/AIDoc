@@ -28,7 +28,7 @@ public class ChatController {
             return Result.error(401, "用户未登录");
         }
 
-        Long userId = Long.parseLong(StpUtil.getLoginIdAsString());
+        String userId = StpUtil.getLoginIdAsString();
         Set<String> sessionIds = chatService.getAllSessionIdsByUserId(userId);
         return Result.success(sessionIds);
     }
@@ -39,12 +39,12 @@ public class ChatController {
             return Result.error(401, "用户未登录");
         }
 
-        Long userId = Long.parseLong(StpUtil.getLoginIdAsString());
+        String userId = StpUtil.getLoginIdAsString();
 
         // 检查会话是否存在
         List<ChatMessage> history = chatService.getChatHistoryByUserIdAndSession(userId, sessionId);
         if (history.isEmpty()) {
-            return Result.error(400, "会话不存在: " + sessionId);
+            return Result.error(400, "会话不存在：" + sessionId);
         }
 
         return Result.success(history);
@@ -57,10 +57,10 @@ public class ChatController {
         }
 
         if (sessionId == null || sessionId.trim().isEmpty()) {
-            return Result.error(400, "会话ID不能为空");
+            return Result.error(400, "会话 ID 不能为空");
         }
 
-        Long userId = Long.parseLong(StpUtil.getLoginIdAsString());
+        String userId = StpUtil.getLoginIdAsString();
 
         try {
             chatService.deleteSessionBySessionId(userId, sessionId.trim());
@@ -76,7 +76,7 @@ public class ChatController {
             return Result.error(401, "用户未登录");
         }
 
-        Long userId = Long.parseLong(StpUtil.getLoginIdAsString());
+        String userId = StpUtil.getLoginIdAsString();
         String sessionId = request.getSessionId() != null ? request.getSessionId() : "default_session";
 
         try {
@@ -84,7 +84,7 @@ public class ChatController {
             chatService.processMessageAsync(userId, sessionId, request.getMessage());
             return Result.success("消息发送成功");
         } catch (Exception e) {
-            return Result.error(500, "消息发送失败: " + e.getMessage());
+            return Result.error(500, "消息发送失败：" + e.getMessage());
         }
     }
 
@@ -95,16 +95,16 @@ public class ChatController {
         }
 
         try {
-            // 生成新的会话ID
+            // 生成新的会话 ID
             String newSessionId = UUID.randomUUID().toString();
 
             // 创建新会话时自动添加欢迎消息
-            Long userId = Long.parseLong(StpUtil.getLoginIdAsString());
+            String userId = StpUtil.getLoginIdAsString();
             chatService.createWelcomeMessage(userId, newSessionId);
 
             return Result.success(newSessionId);
         } catch (Exception e) {
-            return Result.error(500, "创建新对话失败: " + e.getMessage());
+            return Result.error(500, "创建新对话失败：" + e.getMessage());
         }
     }
 
