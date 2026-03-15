@@ -2,6 +2,7 @@ package com.project.aidoc.service;
 
 import com.project.aidoc.common.enums.ToolType;
 import com.project.aidoc.common.tools.*;
+import com.project.aidoc.common.utils.FileTargetExtractor;
 import com.project.aidoc.entity.File;
 import com.project.aidoc.entity.UserConfig;
 import com.project.aidoc.repository.FileRepository;
@@ -63,6 +64,9 @@ public class ToolExecutionService {
     @Autowired
     private GridFsTemplate gridFsTemplate;
 
+    @Autowired
+    private FileTargetExtractor fileTargetExtractor;
+
     // 用于并行处理文件总结的线程池（最大 3 个并发）
     private final ExecutorService summaryExecutor = Executors.newFixedThreadPool(3);
 
@@ -104,10 +108,7 @@ public class ToolExecutionService {
                     result = smartFormFillerTool.executeFillForm(userId, userMessage);
                     break;
                 case SMART_MODIFY:
-                    String editPath = extractFilePathFromMessage(userMessage);
-                    String editReq = extractEditRequirements(userMessage);
-                    Map<String, Object> editInfo = smartEditorTool.editDocument(editPath, editReq);
-                    result = formatEditResult(editInfo);
+                    result = smartEditorTool.editDocument(userId, userMessage);
                     break;
                 default:
                     result = "未识别的工具类型: " + toolCode;
@@ -150,14 +151,15 @@ public class ToolExecutionService {
         // === 策略 2：使用正则表达式匹配带扩展名的文件名 ===
         // 常见文档扩展名
         String filePattern = "([\\u4e00-\\u9fa5\\w\\-\\s()\\(\\)]+\\.(pdf|docx|doc|xlsx|xls|txt|md|markdown|csv|pptx|ppt))";
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(filePattern, java.util.regex.Pattern.CASE_INSENSITIVE);
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(filePattern,
+                java.util.regex.Pattern.CASE_INSENSITIVE);
         java.util.regex.Matcher matcher = pattern.matcher(message);
-        
+
         if (matcher.find()) {
             String fileName = matcher.group(1).trim();
             // 清理首尾的标点符号
             fileName = fileName.replaceAll("^[,，.。:\\s]+", "")
-                              .replaceAll("[,，.。:\\s]+$", "");
+                    .replaceAll("[,，.。:\\s]+$", "");
             log.info("通过正则匹配到文件名：{}", fileName);
             return fileName;
         }
@@ -165,20 +167,21 @@ public class ToolExecutionService {
         // === 策略 3：尝试从特定句式中提取文件名 ===
         // 例如："将 xxx.pdf 转换为 word"、"转换 xxx.docx 为 pdf"
         String[] extractPatterns = {
-            "将\\s*([\\u4e00-\\u9fa5\\w\\-\\s()\\(\\)]+\\.[a-zA-Z0-9]+)\\s*(?:转换|转|变为)",
-            "转换\\s*([\\u4e00-\\u9fa5\\w\\-\\s()\\(\\)]+\\.[a-zA-Z0-9]+)\\s*(?:为|成|到)",
-            "把\\s*([\\u4e00-\\u9fa5\\w\\-\\s()\\(\\)]+\\.[a-zA-Z0-9]+)\\s*(?:转换|转|变为)"
+                "将\\s*([\\u4e00-\\u9fa5\\w\\-\\s()\\(\\)]+\\.[a-zA-Z0-9]+)\\s*(?:转换|转|变为)",
+                "转换\\s*([\\u4e00-\\u9fa5\\w\\-\\s()\\(\\)]+\\.[a-zA-Z0-9]+)\\s*(?:为|成|到)",
+                "把\\s*([\\u4e00-\\u9fa5\\w\\-\\s()\\(\\)]+\\.[a-zA-Z0-9]+)\\s*(?:转换|转|变为)"
         };
-        
+
         for (String extractPattern : extractPatterns) {
-            java.util.regex.Pattern extractPat = java.util.regex.Pattern.compile(extractPattern, java.util.regex.Pattern.CASE_INSENSITIVE);
+            java.util.regex.Pattern extractPat = java.util.regex.Pattern.compile(extractPattern,
+                    java.util.regex.Pattern.CASE_INSENSITIVE);
             java.util.regex.Matcher extractMat = extractPat.matcher(message);
-            
+
             if (extractMat.find()) {
                 String fileName = extractMat.group(1).trim();
                 // 清理首尾的标点符号和空格
                 fileName = fileName.replaceAll("^[,，.。:\\s]+", "")
-                                  .replaceAll("[,，.。:\\s]+$", "");
+                        .replaceAll("[,，.。:\\s]+$", "");
                 log.info("通过句式模式匹配到文件名：{}", fileName);
                 return fileName;
             }
@@ -196,78 +199,20 @@ public class ToolExecutionService {
     }
 
     /**
-     * 从用户消息中提取转换要求
-     */
-    private String extractConversionRequirements(String message) {
-        return "请将文件转换为目标格式";
-    }
-
-    /**
-     * 从用户消息中提取模板路径
-     */
-    private String extractTemplatePathFromMessage(String message) {
-        return "template.xlsx";
-    }
-
-    /**
-     * 从用户消息中提取填表要求
-     */
-    private String extractFillRequirements(String message) {
-        return "请根据读取内容填写模板";
-    }
-
-    /**
-     * 从用户消息中提取编辑要求
-     */
-    private String extractEditRequirements(String message) {
-        return "请修改文档内容";
-    }
-
-    /**
-     * 从用户消息中提取文件类型
-     */
-    private String extractFileTypeFromMessage(String message) {
-        if (message.contains("Excel") || message.contains("xlsx")) {
-            return "Excel";
-        } else if (message.contains("Word") || message.contains("docx")) {
-            return "Word";
-        }
-        return "Unknown";
-    }
-
-    /**
-     * 格式化目录查看结果
-     */
-    private String formatDirectoryResult(Map<String, Object> dirInfo) {
-        return "目录查看结果: " + dirInfo.toString();
-    }
-
-    /**
-     * 格式化内容总结结果
-     */
-    private String formatSummaryResult(Map<String, Object> summaryInfo) {
-        return "内容总结结果: " + summaryInfo.toString();
-    }
-
-    /**
      * 格式化格式转换结果
      */
     private String formatConversionResult(Map<String, Object> convInfo) {
-        return "格式转换结果: " + convInfo.toString();
-    }
-
-    /**
-     * 格式化填表结果
-     */
-    private String formatFillResult(Map<String, Object> fillInfo) {
-        return "填表结果: " + fillInfo.toString();
-    }
-
-    /**
-     * 格式化编辑结果
-     */
-    private String formatEditResult(Map<String, Object> editInfo) {
-        return "编辑结果: " + editInfo.toString();
+        String sourceFileName = (String) convInfo.get("sourceFileName");
+        String targetFormat = (String) convInfo.get("targetFormat");
+        String message = (String) convInfo.get("message");
+        
+        // 格式化文件名（如果过长则截断）
+        String displayName = sourceFileName;
+        if (displayName.length() > 30) {
+            displayName = displayName.substring(0, 15) + "..." + displayName.substring(displayName.length() - 12);
+        }
+        
+        return "✅ 《" + displayName + "》已转换为 " + targetFormat + " 格式";
     }
 
     /**
@@ -288,42 +233,63 @@ public class ToolExecutionService {
     private String handleContentSummary(String userId, String userMessage) {
         try {
             // 1. 尝试从消息中提取目标区域
-            String targetSection = extractSectionFromMessage(userMessage);
+            String targetSection = fileTargetExtractor.extractSectionFromMessage(userMessage);
 
             // 2. 如果用户没有指定区域，默认使用读取区（read）
             if (targetSection == null || targetSection.isEmpty()) {
                 targetSection = "read";
             }
 
-            // 3. 获取用户的完整目录信息（用于 AI 理解文件分布）
-            List<File> allUserFiles = fileService.getFilesByUserId(userId);
-            String directoryContext = generateDirectoryContext(allUserFiles, targetSection);
+            // 3. 尝试从消息中提取文件路径或文件名
+            String filePath = fileTargetExtractor.extractFilePathFromMessage(userMessage);
 
-            // 4. 尝试从消息中提取文件路径或文件名
-            String filePath = extractFilePathFromMessage(userMessage);
-
-            // 5. 如果指定了具体文件，总结单个文件
+            // 4. 如果指定了具体文件，总结单个文件
             if (filePath != null && !filePath.isEmpty() && !"sample.txt".equals(filePath)) {
+                log.info("用户指定了文件：{}, 目标区域：{}", filePath, targetSection);
+                
                 // 获取用户指定区域的所有文件
                 List<File> userFiles = fileService.getFilesByUserIdAndSection(userId, targetSection);
-
+                
                 // 过滤掉缓存文件
-                List<File> realFiles = filterOutCacheFiles(userFiles);
-
+                List<File> realFiles = fileTargetExtractor.filterOutCacheFiles(userFiles);
+                
                 // 尝试匹配用户指定的文件
-                File matchedFile = findMatchingFile(realFiles, filePath);
-
+                File matchedFile = fileTargetExtractor.findMatchingFile(realFiles, filePath);
+                
+                // 如果在指定区域未找到文件，且用户没有明确指定区域，则在其他区域进行精确匹配
+                if (matchedFile == null && targetSection.equals("read")) {
+                    log.info("在读取区未找到文件 {}，尝试在其他区域精确匹配", filePath);
+                    
+                    // 获取所有区域的文件进行匹配
+                    List<File> allUserFiles = fileService.getFilesByUserId(userId);
+                    List<File> allRealFiles = fileTargetExtractor.filterOutCacheFiles(allUserFiles);
+                    
+                    // 使用精确匹配策略（只在所有区域中查找同名文件）
+                    matchedFile = findExactMatchFile(allRealFiles, filePath);
+                    
+                    if (matchedFile != null) {
+                        log.info("在其他区域精确匹配到文件：{} (区域：{})", 
+                                matchedFile.getOriginalName(), matchedFile.getSection());
+                        // 更新目标区域为文件实际所在区域
+                        targetSection = matchedFile.getSection();
+                    }
+                }
+                
                 if (matchedFile != null) {
                     // 找到匹配的文件，使用文件的完整路径
                     String summaryReq = extractSummaryRequirements(userMessage);
-
+                    
+                    // 获取目录上下文（用于 AI 理解文件分布）
+                    List<File> allUserFiles = fileService.getFilesByUserId(userId);
+                    String directoryContext = generateDirectoryContext(allUserFiles, targetSection);
+                    
                     // 构建包含目录上下文的提示词
                     StringBuilder contextPrompt = new StringBuilder();
                     contextPrompt.append("当前用户的文件目录结构如下：\n");
                     contextPrompt.append(directoryContext).append("\n\n");
                     contextPrompt.append("用户要求总结的文件是：").append(matchedFile.getOriginalName()).append("\n");
                     contextPrompt.append("请基于这个文件进行总结，忽略其他文件。\n\n");
-
+                    
                     // 调用总结工具
                     Map<String, Object> summaryInfo = contentSummarizerTool.summarizeContent(
                             matchedFile.getFilePath(),
@@ -332,12 +298,12 @@ public class ToolExecutionService {
                     return formatSummaryResultWithContext(summaryInfo, contextPrompt.toString());
                 } else {
                     // 没有找到匹配的文件
-                    String sectionName = getSectionDisplayName(targetSection);
+                    String sectionName = fileTargetExtractor.getSectionDisplayName(targetSection);
                     return "在" + sectionName + "未找到名为 \"" + filePath + "\" 的文件。请使用文件全名或先查看目录确认文件名。";
                 }
             }
 
-            // 6. 如果没有指定具体文件，批量总结指定区域的所有文件
+            // 5. 如果没有指定具体文件，批量总结指定区域的所有文件
             return batchSummarizeAllFiles(userId, userMessage);
 
         } catch (Exception e) {
@@ -364,7 +330,7 @@ public class ToolExecutionService {
 
         for (String section : sections) {
             List<File> sectionFiles = filesBySection.getOrDefault(section, new ArrayList<>());
-            String displayName = getSectionDisplayName(section);
+            String displayName = fileTargetExtractor.getSectionDisplayName(section);
 
             if (!sectionFiles.isEmpty()) {
                 hasAnyFiles = true;
@@ -397,6 +363,68 @@ public class ToolExecutionService {
     }
 
     /**
+     * 解析 JSON 格式的总结（提取 summary 字段）
+     */
+    private String parseJsonSummary(String jsonContent, String originalName) {
+        try {
+            // 简单的 JSON 解析，提取 summary 字段
+            int summaryStart = jsonContent.indexOf("\"summary\"");
+            if (summaryStart == -1) {
+                return jsonContent; // 不是 JSON 格式，直接返回
+            }
+
+            summaryStart = jsonContent.indexOf(":", summaryStart) + 1;
+            while (summaryStart < jsonContent.length() &&
+                    (jsonContent.charAt(summaryStart) == ' ' || jsonContent.charAt(summaryStart) == '\n')) {
+                summaryStart++;
+            }
+
+            if (summaryStart >= jsonContent.length()) {
+                return jsonContent;
+            }
+
+            // 移除开头的引号
+            if (jsonContent.charAt(summaryStart) == '"') {
+                summaryStart++;
+            }
+
+            // 查找 summary 字段的结束位置（在下一个逗号或右大括号之前）
+            int summaryEnd = jsonContent.length();
+            boolean inEscape = false;
+            for (int i = summaryStart; i < jsonContent.length(); i++) {
+                char c = jsonContent.charAt(i);
+                if (inEscape) {
+                    inEscape = false;
+                    continue;
+                }
+                if (c == '\\') {
+                    inEscape = true;
+                    continue;
+                }
+                if (c == '"') {
+                    // 找到结束的引号
+                    summaryEnd = i;
+                    break;
+                }
+            }
+            
+            if (summaryEnd > summaryStart) {
+                String summary = jsonContent.substring(summaryStart, summaryEnd);
+                // 转义字符还原
+                summary = summary.replace("\\n", "\n")
+                        .replace("\\\"", "\"")
+                        .replace("\\\\", "\\");
+                return formatSingleFileSummary(originalName, summary);
+            }
+
+            return jsonContent;
+        } catch (Exception e) {
+            log.error("解析 JSON 缓存失败", e);
+            return jsonContent;
+        }
+    }
+
+    /**
      * 格式化包含目录上下文的总结结果
      */
     private String formatSummaryResultWithContext(Map<String, Object> summaryInfo, String context) {
@@ -423,7 +451,7 @@ public class ToolExecutionService {
     private String batchSummarizeAllFiles(String userId, String userMessage) {
         try {
             // 1. 尝试从消息中提取目标区域（read/wait/template/result）
-            String targetSection = extractSectionFromMessage(userMessage);
+            String targetSection = fileTargetExtractor.extractSectionFromMessage(userMessage);
 
             // 2. 如果用户没有指定区域，默认只总结读取区（read）的文件
             if (targetSection == null || targetSection.isEmpty()) {
@@ -438,7 +466,7 @@ public class ToolExecutionService {
             List<File> sectionFiles = fileService.getFilesByUserIdAndSection(userId, targetSection);
 
             if (sectionFiles.isEmpty()) {
-                String sectionName = getSectionDisplayName(targetSection);
+                String sectionName = fileTargetExtractor.getSectionDisplayName(targetSection);
                 // 使用目录上下文给出更友好的提示
                 StringBuilder tipBuilder = new StringBuilder();
                 tipBuilder.append("您好！目前您的").append(sectionName).append("是空的，没有任何文件可以总结。\n\n");
@@ -452,7 +480,7 @@ public class ToolExecutionService {
             }
 
             // 5. 过滤掉 temp 区的缓存文件（文件名包含 _summary.json 的）
-            List<File> realFiles = filterOutCacheFiles(sectionFiles);
+            List<File> realFiles = fileTargetExtractor.filterOutCacheFiles(sectionFiles);
 
             if (realFiles.isEmpty()) {
                 return "您指定的区域没有找到可总结的文件。";
@@ -478,7 +506,7 @@ public class ToolExecutionService {
 
             // 8. 等待所有任务完成并收集结果
             StringBuilder resultBuilder = new StringBuilder();
-            resultBuilder.append("好的，已成功为您总结").append(getSectionDisplayName(targetSection)).append("的文件。概括如下：\n\n");
+            resultBuilder.append("好的，已成功为您总结").append(fileTargetExtractor.getSectionDisplayName(targetSection)).append("的文件。概括如下：\n\n");
 
             for (int i = 0; i < futures.size(); i++) {
                 try {
@@ -569,49 +597,6 @@ public class ToolExecutionService {
     }
 
     /**
-     * 从 JSON 缓存中提取并格式化 summary 内容
-     */
-    private String parseJsonSummary(String jsonContent, String originalName) {
-        try {
-            // 简单的 JSON 解析，提取 summary 字段
-            int summaryStart = jsonContent.indexOf("\"summary\"");
-            if (summaryStart == -1) {
-                return jsonContent; // 不是 JSON 格式，直接返回
-            }
-
-            summaryStart = jsonContent.indexOf(":", summaryStart) + 1;
-            while (summaryStart < jsonContent.length() &&
-                    (jsonContent.charAt(summaryStart) == ' ' || jsonContent.charAt(summaryStart) == '\n')) {
-                summaryStart++;
-            }
-
-            if (summaryStart >= jsonContent.length()) {
-                return jsonContent;
-            }
-
-            // 移除开头的引号
-            if (jsonContent.charAt(summaryStart) == '"') {
-                summaryStart++;
-            }
-
-            int summaryEnd = jsonContent.lastIndexOf("\"");
-            if (summaryEnd > summaryStart) {
-                String summary = jsonContent.substring(summaryStart, summaryEnd);
-                // 转义字符还原
-                summary = summary.replace("\\n", "\n")
-                        .replace("\\\"", "\"")
-                        .replace("\\\\", "\\");
-                return formatSingleFileSummary(originalName, summary);
-            }
-
-            return jsonContent;
-        } catch (Exception e) {
-            log.error("解析 JSON 缓存失败", e);
-            return jsonContent;
-        }
-    }
-
-    /**
      * 格式化单个文件的总结结果
      */
     private String formatSingleFileSummary(String fileName, String aiResponse) {
@@ -688,59 +673,6 @@ public class ToolExecutionService {
         } catch (Exception e) {
             log.error("获取文档内容失败：{}", sourceFile.getOriginalName(), e);
             return "";
-        }
-    }
-
-    /**
-     * 从用户消息中提取目标区域
-     */
-    private String extractSectionFromMessage(String message) {
-        if (message == null || message.isEmpty()) {
-            return null;
-        }
-
-        // 支持多种表达方式（不区分大小写）
-        String lowerMessage = message.toLowerCase();
-
-        // === 读取区（read）===
-        if (lowerMessage.contains("读取区") || lowerMessage.contains("read")) {
-            return "read";
-        }
-
-        // === 等待区（wait）===
-        if (lowerMessage.contains("等待区") || lowerMessage.contains("wait")) {
-            return "wait";
-        }
-
-        // === 模板区（template）===
-        if (lowerMessage.contains("模板区") || lowerMessage.contains("template")) {
-            return "template";
-        }
-
-        // === 结果区（result）===
-        if (lowerMessage.contains("结果区") || lowerMessage.contains("result") ||
-                lowerMessage.contains("输出区") || lowerMessage.contains("导出区")) {
-            return "result";
-        }
-
-        return null; // 没有明确指定区域
-    }
-
-    /**
-     * 获取区域的显示名称
-     */
-    private String getSectionDisplayName(String section) {
-        switch (section) {
-            case "read":
-                return "读取区";
-            case "wait":
-                return "等待区";
-            case "template":
-                return "模板区";
-            case "result":
-                return "结果区";
-            default:
-                return "该区域";
         }
     }
 
@@ -829,7 +761,7 @@ public class ToolExecutionService {
     }
 
     /**
-     * 将 AI 的总结结果保存到 temp 区作为缓存
+     * 保存 AI 总结到 temp 区（作为缓存）
      */
     private void saveAiSummaryToTemp(String sourceFileId, String aiSummary, String userId) {
         try {
@@ -844,12 +776,10 @@ public class ToolExecutionService {
                 }
             }
 
-            // 将 AI 总结转换为 JSON 格式存储
-            // 简单处理：将文本总结包装成 JSON
+            // 将 AI 总结转换为 JSON 格式存储（只保存必要的字段）
             String jsonContent = "{\n" +
-                    "  \"title\": \"" + sourceFileId + "\",\n" +
-                    "  \"summary\": " + escapeJsonString(aiSummary) + ",\n" +
-                    "  \"timestamp\": \"" + LocalDateTime.now() + "\"\n" +
+                    "  \"sourceFileId\": \"" + sourceFileId + "\",\n" +
+                    "  \"summary\": " + escapeJsonString(aiSummary) + "\n" +
                     "}";
 
             byte[] contentBytes = jsonContent.getBytes(StandardCharsets.UTF_8);
@@ -967,79 +897,6 @@ public class ToolExecutionService {
     }
 
     /**
-     * 查找匹配的文件（采用三级匹配策略）
-     * 
-     * 匹配优先级：
-     * 1. 精确匹配：完整匹配 originalName 或 fileName（含扩展名）
-     * 2. 无扩展名匹配：去除扩展名后进行匹配
-     * 3. 宽松模糊匹配：仅当搜索词是文件名的完整子串时才视为匹配
-     */
-    private File findMatchingFile(List<File> files, String searchName) {
-        if (searchName == null || files == null || files.isEmpty()) {
-            return null;
-        }
-
-        log.debug("开始匹配文件，搜索词：{}, 候选文件数：{}", searchName, files.size());
-
-        // === 第一级：精确匹配文件名（含扩展名）===
-        for (File file : files) {
-            if (file.getOriginalName().equals(searchName) ||
-                    file.getFileName().equals(searchName)) {
-                log.info("精确匹配到文件：{} (original: {}, fileName: {})", 
-                        searchName, file.getOriginalName(), file.getFileName());
-                return file;
-            }
-        }
-
-        // === 第二级：无扩展名匹配 ===
-        String searchNameWithoutExt = removeFileExtension(searchName);
-        log.debug("精确匹配失败，尝试无扩展名匹配：{}", searchNameWithoutExt);
-        
-        for (File file : files) {
-            String originalNameWithoutExt = removeFileExtension(file.getOriginalName());
-            String fileNameWithoutExt = removeFileExtension(file.getFileName());
-            
-            if (originalNameWithoutExt.equals(searchNameWithoutExt) ||
-                    fileNameWithoutExt.equals(searchNameWithoutExt)) {
-                log.info("无扩展名匹配到文件：{} -> {}", searchName, file.getOriginalName());
-                return file;
-            }
-        }
-
-        // === 第三级：宽松模糊匹配（仅当搜索词是完整子串时）===
-        log.debug("无扩展名匹配失败，尝试宽松模糊匹配");
-        
-        for (File file : files) {
-            // 忽略大小写进行子串匹配
-            if (file.getOriginalName().toLowerCase().contains(searchName.toLowerCase()) ||
-                    file.getFileName().toLowerCase().contains(searchName.toLowerCase())) {
-                log.warn("宽松模糊匹配到文件：{} -> {} (可能存在误匹配，请用户确认)", 
-                        searchName, file.getOriginalName());
-                return file;
-            }
-        }
-
-        log.info("未匹配到文件：{}", searchName);
-        return null;
-    }
-
-    /**
-     * 移除文件扩展名
-     */
-    private String removeFileExtension(String fileName) {
-        if (fileName == null || fileName.isEmpty()) {
-            return fileName;
-        }
-        
-        int lastDotIndex = fileName.lastIndexOf('.');
-        if (lastDotIndex > 0 && lastDotIndex < fileName.length() - 1) {
-            // 确保不是以点开头的隐藏文件
-            return fileName.substring(0, lastDotIndex);
-        }
-        return fileName;
-    }
-
-    /**
      * 格式化文件大小
      */
     private String formatFileSize(long size) {
@@ -1070,87 +927,74 @@ public class ToolExecutionService {
     }
 
     /**
-     * 过滤掉缓存文件（_summary.json）
-     */
-    private List<File> filterOutCacheFiles(List<File> files) {
-        List<File> result = new ArrayList<>();
-        for (File file : files) {
-            if (!file.getFileName().endsWith("_summary.json")) {
-                result.add(file);
-            }
-        }
-        return result;
-    }
-
-    /**
      * 智能处理格式转换请求（完全参考内容总结的匹配机制）
      */
     private String handleFormatConversion(String userId, String userMessage) {
         try {
             // 1. 尝试从消息中提取目标区域
-            String targetSection = extractSectionFromMessage(userMessage);
-            
+            String targetSection = fileTargetExtractor.extractSectionFromMessage(userMessage);
+
             // 2. 如果用户没有指定区域，默认使用读取区（read）
             if (targetSection == null || targetSection.isEmpty()) {
                 targetSection = "read";
             }
-            
+
             // 3. 从消息中提取目标格式
             String targetFormat = extractTargetFormatFromMessage(userMessage);
-            
+
             // 4. 尝试从消息中提取文件名或路径
-            String filePath = extractFilePathFromMessage(userMessage);
-            
-            log.info("格式转换请求 - 区域：{}, 目标格式：{}, 文件路径：{}", 
+            String filePath = fileTargetExtractor.extractFilePathFromMessage(userMessage);
+
+            log.info("格式转换请求 - 区域：{}, 目标格式：{}, 文件路径：{}",
                     targetSection, targetFormat, filePath);
-            
+
             // 5. 获取用户指定区域的所有文件
             List<File> sectionFiles = fileService.getFilesByUserIdAndSection(userId, targetSection);
-            
+
             if (sectionFiles.isEmpty()) {
-                String sectionName = getSectionDisplayName(targetSection);
+                String sectionName = fileTargetExtractor.getSectionDisplayName(targetSection);
                 return "您的" + sectionName + "还没有任何文件。请先上传需要转换的文档。";
             }
-            
+
             // 6. 过滤掉缓存文件
-            List<File> realFiles = filterOutCacheFiles(sectionFiles);
-            
+            List<File> realFiles = fileTargetExtractor.filterOutCacheFiles(sectionFiles);
+
             if (realFiles.isEmpty()) {
                 return "您指定的区域没有找到可转换的文件。";
             }
-            
+
             // 7. 如果指定了具体文件，转换单个文件
             if (filePath != null && !filePath.isEmpty()) {
                 log.info("用户指定了文件：{}, 在 {} 中查找", filePath, targetSection);
-                
+
                 // 尝试匹配用户指定的文件
-                File matchedFile = findMatchingFile(realFiles, filePath);
-                
+                File matchedFile = fileTargetExtractor.findMatchingFile(realFiles, filePath);
+
                 if (matchedFile != null) {
-                    log.info("匹配到文件 - ID: {}, OriginalName: {}, FileName: {}", 
-                             matchedFile.getId(), matchedFile.getOriginalName(), matchedFile.getFileName());
-                    
+                    log.info("匹配到文件 - ID: {}, OriginalName: {}, FileName: {}",
+                            matchedFile.getId(), matchedFile.getOriginalName(), matchedFile.getFileName());
+
                     // 确定实际的目标格式
                     String actualTargetFormat = determineTargetFormat(matchedFile, targetFormat);
-                    
+
                     if (actualTargetFormat == null) {
-                        return "暂不支持将 " + getFileExtension(matchedFile.getOriginalName()) + 
-                               " 格式转换为 " + targetFormat + " 格式。";
+                        return "暂不支持将 " + getFileExtension(matchedFile.getOriginalName()) +
+                                " 格式转换为 " + targetFormat + " 格式。";
                     }
-                    
+
                     // 执行单个文件转换
                     return convertSingleFile(userId, matchedFile, actualTargetFormat);
                 } else {
                     // 未找到匹配的文件
-                    String sectionName = getSectionDisplayName(targetSection);
+                    String sectionName = fileTargetExtractor.getSectionDisplayName(targetSection);
                     return "在" + sectionName + "未找到名为 \"" + filePath + "\" 的文件。请使用文件的完整名称，或先查看目录确认文件名。";
                 }
             }
-            
+
             // 8. 未指定文件时，批量转换指定区域的所有文件
             log.info("未指定文件，批量转换 {} 的所有文件 ({})", targetSection, realFiles.size());
             return batchConvertFiles(userId, realFiles, targetSection, targetFormat);
-            
+
         } catch (Exception e) {
             log.error("处理格式转换请求失败", e);
             return "处理格式转换请求时发生错误：" + e.getMessage();
@@ -1164,9 +1008,9 @@ public class ToolExecutionService {
         if (message == null || message.isEmpty()) {
             return null;
         }
-        
+
         String lowerMessage = message.toLowerCase();
-        
+
         // 检查各种格式关键词
         if (lowerMessage.contains("pdf")) {
             return "pdf";
@@ -1179,7 +1023,7 @@ public class ToolExecutionService {
         } else if (lowerMessage.contains("md") || lowerMessage.contains("markdown")) {
             return "md";
         }
-        
+
         return null; // 未明确指定目标格式
     }
 
@@ -1188,24 +1032,24 @@ public class ToolExecutionService {
      */
     private String determineTargetFormat(File sourceFile, String requestedFormat) {
         String sourceExt = getFileExtension(sourceFile.getOriginalName());
-        
+
         // 如果用户指定了目标格式，按用户的来
         if (requestedFormat != null && !requestedFormat.isEmpty()) {
             return requestedFormat;
         }
-        
+
         // 用户未指定时，根据源文件类型自动选择
         if ("pdf".equals(sourceExt)) {
             // PDF 文件默认转为 Word
             return "docx";
-        } else if ("docx".equals(sourceExt) || "doc".equals(sourceExt) || 
-                   "xlsx".equals(sourceExt) || "xls".equals(sourceExt) ||
-                   "md".equals(sourceExt) || "markdown".equals(sourceExt) ||
-                   "txt".equals(sourceExt)) {
+        } else if ("docx".equals(sourceExt) || "doc".equals(sourceExt) ||
+                "xlsx".equals(sourceExt) || "xls".equals(sourceExt) ||
+                "md".equals(sourceExt) || "markdown".equals(sourceExt) ||
+                "txt".equals(sourceExt)) {
             // 其他文件默认转为 PDF
             return "pdf";
         }
-        
+
         // 不支持的格式
         return null;
     }
@@ -1225,16 +1069,18 @@ public class ToolExecutionService {
      */
     private String convertSingleFile(String userId, File sourceFile, String targetFormat) {
         try {
-            String sourceFilePath = sourceFile.getFilePath();
+            String sourceFileId = sourceFile.getId();
             String sourceFileName = sourceFile.getOriginalName();
 
-            // 调用格式转换工具
+            log.info("开始转换文件 - ID: {}, 名称：{}, 目标格式：{}", sourceFileId, sourceFileName, targetFormat);
+
+            // 调用格式转换工具，传递文件 ID 而不是路径
             Map<String, Object> conversionInfo = formatConverterTool.convertFormat(
                     targetFormat,
-                    sourceFilePath);
+                    sourceFileId);
 
             if (!"success".equals(conversionInfo.get("status"))) {
-                return "转换失败：" + conversionInfo.get("message");
+                return "❌ 转换失败：" + conversionInfo.get("message");
             }
 
             // 获取转换后的文件信息
@@ -1261,10 +1107,18 @@ public class ToolExecutionService {
             for (File sourceFile : files) {
                 CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {
                     try {
-                        return convertSingleFile(userId, sourceFile, targetFormat);
+                        // 如果未指定目标格式，根据源文件类型自动确定
+                        String actualTargetFormat = targetFormat;
+                        if (actualTargetFormat == null || actualTargetFormat.isEmpty()) {
+                            actualTargetFormat = determineTargetFormat(sourceFile, null);
+                            if (actualTargetFormat == null) {
+                                return "❌ 《" + sourceFile.getOriginalName() + "》暂不支持自动转换格式";
+                            }
+                        }
+                        return convertSingleFile(userId, sourceFile, actualTargetFormat);
                     } catch (Exception e) {
                         log.error("转换文件失败：{}", sourceFile.getOriginalName(), e);
-                        return "文档《" + sourceFile.getOriginalName() + "》转换失败：" + e.getMessage();
+                        return "❌ 《" + sourceFile.getOriginalName() + "》转换失败：" + e.getMessage();
                     }
                 }, summaryExecutor);
                 futures.add(future);
@@ -1272,28 +1126,96 @@ public class ToolExecutionService {
 
             // 2. 等待所有任务完成并收集结果
             StringBuilder resultBuilder = new StringBuilder();
-            resultBuilder.append("好的，已成功为您转换").append(getSectionDisplayName(targetSection)).append("的文件。结果如下：\n\n");
+            resultBuilder.append("好的，已成功为您转换").append(fileTargetExtractor.getSectionDisplayName(targetSection)).append("的文件。结果如下：\n\n");
 
             for (int i = 0; i < futures.size(); i++) {
                 try {
                     String conversionResult = futures.get(i).get(); // 等待当前任务完成
-                    resultBuilder.append(conversionResult).append("\n\n");
+                    resultBuilder.append(conversionResult).append("\n");
                 } catch (Exception e) {
-                    log.error("获取转换结果失败", e);
-                    resultBuilder.append("文档").append(i + 1).append("：获取失败\n\n");
+                    log.error("等待转换结果失败", e);
+                    resultBuilder.append("❌ 转换任务执行异常\n");
                 }
-            }
-
-            // 3. 添加综合说明
-            if (files.size() > 1) {
-                resultBuilder.append("📊 综合分析：以上 ").append(files.size()).append(" 个文档已分别完成转换。\n");
             }
 
             return resultBuilder.toString();
 
         } catch (Exception e) {
-            log.error("批量转换失败", e);
+            log.error("批量转换文件失败", e);
             return "批量转换失败：" + e.getMessage();
         }
     }
+
+    /**
+     * 在所有区域中精确匹配文件（用于跨区查找）
+     * 该方法只进行精确匹配，不进行模糊匹配
+     * 
+     * @param allFiles 所有区域的文件列表
+     * @param searchName 搜索的文件名
+     * @return 精确匹配的文件，未找到返回 null
+     */
+    private File findExactMatchFile(List<File> allFiles, String searchName) {
+        if (searchName == null || allFiles == null || allFiles.isEmpty()) {
+            return null;
+        }
+
+        log.debug("在所有区域中精确匹配文件：{}", searchName);
+
+        // 第一级：精确匹配文件名（含扩展名）
+        for (File file : allFiles) {
+            if (file.getOriginalName().equals(searchName) ||
+                    file.getFileName().equals(searchName)) {
+                log.info("精确匹配到文件：{} (区域：{})", 
+                        file.getOriginalName(), file.getSection());
+                return file;
+            }
+        }
+
+        // 第二级：带扩展名的智能匹配
+        String searchNameLower = searchName.toLowerCase();
+        if (searchNameLower.contains(".")) {
+            String searchExt = searchNameLower.substring(searchNameLower.lastIndexOf("."));
+            log.debug("搜索词包含扩展名：{}, 尝试扩展名匹配：{}", searchName, searchExt);
+
+            for (File file : allFiles) {
+                String originalNameLower = file.getOriginalName().toLowerCase();
+                String fileNameLower = file.getFileName().toLowerCase();
+
+                // 检查扩展名是否匹配
+                if (originalNameLower.endsWith(searchExt) || fileNameLower.endsWith(searchExt)) {
+                    String originalWithoutExt = fileTargetExtractor.removeFileExtension(file.getOriginalName());
+                    String searchWithoutExt = fileTargetExtractor.removeFileExtension(searchName);
+
+                    // 去除扩展名后进行精确匹配
+                    if (originalWithoutExt.equals(searchWithoutExt) ||
+                            fileTargetExtractor.removeFileExtension(file.getFileName()).equals(searchWithoutExt)) {
+                        log.info("带扩展名匹配到文件：{} (区域：{})", 
+                                file.getOriginalName(), file.getSection());
+                        return file;
+                    }
+                }
+            }
+        }
+
+        // 第三级：无扩展名匹配
+        String searchNameWithoutExt = fileTargetExtractor.removeFileExtension(searchName);
+        log.debug("精确匹配失败，尝试无扩展名匹配：{}", searchNameWithoutExt);
+
+        for (File file : allFiles) {
+            String originalNameWithoutExt = fileTargetExtractor.removeFileExtension(file.getOriginalName());
+            String fileNameWithoutExt = fileTargetExtractor.removeFileExtension(file.getFileName());
+
+            if (originalNameWithoutExt.equals(searchNameWithoutExt) ||
+                    fileNameWithoutExt.equals(searchNameWithoutExt)) {
+                log.info("无扩展名匹配到文件：{} (区域：{})", 
+                        file.getOriginalName(), file.getSection());
+                return file;
+            }
+        }
+
+        // 不进行模糊匹配，避免误匹配
+        log.info("在所有区域中未精确匹配到文件：{}", searchName);
+        return null;
+    }
+
 }

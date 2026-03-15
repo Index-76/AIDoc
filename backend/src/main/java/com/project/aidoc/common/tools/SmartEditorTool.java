@@ -10,19 +10,17 @@ import java.util.Map;
  */
 @Component
 public class SmartEditorTool {
-    
+
     /**
      * 智能修改文档内容
-     * @param filePath 文档文件路径
-     * @param modificationRequirements 修改要求
-     * @return 修改结果Map
+     * 
+     * @param userId      用户 ID (String ObjectId)
+     * @param userMessage 用户消息
+     * @return 修改结果
      */
-    public Map<String, Object> editDocument(String filePath, String modificationRequirements) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("status", "success");
-        result.put("message", "智能修改功能待实现");
-        result.put("filePath", filePath);
-        result.put("requirements", modificationRequirements);
+    public String editDocument(String userId, String userMessage) {
+        String result;
+        result = "智能修改功能待实现";
         return result;
     }
 }

@@ -1,13 +1,13 @@
 class FileInfo {
   final String id;
-  final String fileName; // 后端返回的是fileName，不是name
-  final String originalName; // 后端返回originalName
-  final String contentType; // 后端返回contentType
-  final int size; // 后端返回size
-  final String section; // 后端返回section
-  final int userId; // 后端返回userId
-  final DateTime uploadTime; // 后端返回uploadTime
-  final String filePath; // 后端返回filePath
+  final String fileName;
+  final String originalName;
+  final String contentType;
+  final int size;
+  final String section;
+  final String userId;
+  final DateTime uploadTime;
+  final String filePath;
 
   FileInfo({
     required this.id,
@@ -29,7 +29,7 @@ class FileInfo {
       contentType: json['contentType'] ?? 'application/octet-stream',
       size: json['size']?.toInt() ?? 0,
       section: json['section'] ?? 'read',
-      userId: json['userId']?.toInt() ?? 0,
+      userId: json['userId']?.toString() ?? '',
       uploadTime: _parseUploadTime(json['uploadTime']),
       filePath: json['filePath'] ?? '',
     );
