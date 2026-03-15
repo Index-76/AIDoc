@@ -5,9 +5,10 @@ import com.project.aidoc.service.ApiService;
 import com.project.aidoc.service.FileService;
 import com.project.aidoc.service.UserConfigService;
 import com.project.aidoc.common.utils.ExcelToExcel;
-import com.project.aidoc.common.utils.TxtToExcel;
-import com.project.aidoc.common.utils.TxtToWord;
+import com.project.aidoc.common.utils.TxtToTemplate;  // 替换为 TxtToTemplate
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -25,6 +26,8 @@ import java.util.List;
 @Component
 public class SmartFormFillerTool {
 
+    private static final Logger log = LoggerFactory.getLogger(SmartFormFillerTool.class);
+
     @Autowired
     private FileService fileService;
 
@@ -37,7 +40,7 @@ public class SmartFormFillerTool {
     /**
      * 执行智能填表功能
      * 
-     * @param userId      用户 ID (String ObjectId)
+     * @param userId      用户 ID
      * @param userMessage 用户消息
      * @return 执行结果
      */
@@ -85,12 +88,28 @@ public class SmartFormFillerTool {
                 result = "暂不支持 Excel 到 Word 的填表功能";
             } else if (!isReadExcel && isTemplateExcel) {
                 // Word to Excel
-                log.info("调用 TxtToExcel 处理");
-                result = TxtToExcel.process(readFile, templateFile, userId, fileService, userConfigService);
+                log.info("调用 TxtToTemplate 处理 (Word to Excel)");
+                result = TxtToTemplate.process(
+                    readFiles, 
+                    templateFiles, 
+                    userId, 
+                    fileService, 
+                    userConfigService, 
+                    apiService, 
+                    userMessage
+                );
             } else {
                 // Word to Word
-                log.info("调用 TxtToWord 处理");
-                result = TxtToWord.process(readFile, templateFile, userId, fileService, userConfigService, apiService);
+                log.info("调用 TxtToTemplate 处理 (Word to Word)");
+                result = TxtToTemplate.process(
+                    readFiles, 
+                    templateFiles, 
+                    userId, 
+                    fileService, 
+                    userConfigService, 
+                    apiService, 
+                    userMessage
+                );
             }
 
             log.info("智能填表执行完成：{}", result);
