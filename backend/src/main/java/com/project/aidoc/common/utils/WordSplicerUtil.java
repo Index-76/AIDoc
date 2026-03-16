@@ -136,6 +136,15 @@ public class WordSplicerUtil {
                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document", updatedContent
             );
             File savedFile = fileService.saveFile(updatedFile, "temp", userId);
+            
+            // 删除旧的模板副本
+            try {
+                fileService.deleteFileById(filledFileId, userId);
+                log.info("已删除旧 Word 模板副本：{}", filledFileId);
+            } catch (Exception e) {
+                log.warn("删除旧 Word 模板副本失败：{}", filledFileId, e.getMessage());
+            }
+            
             log.info("Word 文档已保存：{} (ID: {})", savedFile.getFileName(), savedFile.getId());
             return savedFile.getId();
         }

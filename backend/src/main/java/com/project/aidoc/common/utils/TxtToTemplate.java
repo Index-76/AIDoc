@@ -20,8 +20,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 统一的多模板智能填充服务类
- * 整合 Excel 和 Word 的填表逻辑，支持多读取文件、AI 决策文件映射、主键冲突策略等功能
- * 合并自原 TxtToExcel 和 TxtToWord，并整合 TemplateFillService 与 AIFileHelper 的核心流程
  */
 public class TxtToTemplate {
     private static final Logger log = LoggerFactory.getLogger(TxtToTemplate.class);
@@ -30,9 +28,12 @@ public class TxtToTemplate {
     private static int SEGMENT_SIZE = Integer.parseInt(System.getProperty("template.segment.size", "30720"));
     private static int OVERLAP_SIZE = Integer.parseInt(System.getProperty("template.overlap.size", "300"));
     private static int MAX_CONCURRENT_AI_CALLS = Integer.parseInt(System.getProperty("template.max.concurrent", "10"));
-    private static long AI_EXTRACT_TIMEOUT_MINUTES = Long.parseLong(System.getProperty("ai.extract.timeout.minutes", "10"));
-    private static String PRIMARY_KEY_CONFLICT_STRATEGY = System.getProperty("template.pk.conflict.strategy", "KEEP_FIRST");
-    private static boolean KEEP_TEXT_FILES = Boolean.parseBoolean(System.getProperty("template.keep.text.files", "true"));
+    private static long AI_EXTRACT_TIMEOUT_MINUTES = Long
+            .parseLong(System.getProperty("ai.extract.timeout.minutes", "10"));
+    private static String PRIMARY_KEY_CONFLICT_STRATEGY = System.getProperty("template.pk.conflict.strategy",
+            "KEEP_FIRST");
+    private static boolean KEEP_TEXT_FILES = Boolean
+            .parseBoolean(System.getProperty("template.keep.text.files", "true"));
 
     private static final String MISSING_VALUE_MARKER = "<null>";
     private static final String AI_RESULT_FILE_PREFIX = "_ai_result_";
@@ -47,18 +48,53 @@ public class TxtToTemplate {
         private Integer overlapSize;
 
         // getters and setters
-        public int getHeaderRowCount() { return headerRowCount; }
-        public void setHeaderRowCount(int headerRowCount) { this.headerRowCount = headerRowCount; }
-        public int getHeaderRowIndex() { return headerRowIndex; }
-        public void setHeaderRowIndex(int headerRowIndex) { this.headerRowIndex = headerRowIndex; }
-        public String getPrimaryKeyHeader() { return primaryKeyHeader; }
-        public void setPrimaryKeyHeader(String primaryKeyHeader) { this.primaryKeyHeader = primaryKeyHeader; }
-        public String getPrimaryKeyConflictStrategy() { return primaryKeyConflictStrategy; }
-        public void setPrimaryKeyConflictStrategy(String primaryKeyConflictStrategy) { this.primaryKeyConflictStrategy = primaryKeyConflictStrategy; }
-        public Integer getSegmentSize() { return segmentSize; }
-        public void setSegmentSize(Integer segmentSize) { this.segmentSize = segmentSize; }
-        public Integer getOverlapSize() { return overlapSize; }
-        public void setOverlapSize(Integer overlapSize) { this.overlapSize = overlapSize; }
+        public int getHeaderRowCount() {
+            return headerRowCount;
+        }
+
+        public void setHeaderRowCount(int headerRowCount) {
+            this.headerRowCount = headerRowCount;
+        }
+
+        public int getHeaderRowIndex() {
+            return headerRowIndex;
+        }
+
+        public void setHeaderRowIndex(int headerRowIndex) {
+            this.headerRowIndex = headerRowIndex;
+        }
+
+        public String getPrimaryKeyHeader() {
+            return primaryKeyHeader;
+        }
+
+        public void setPrimaryKeyHeader(String primaryKeyHeader) {
+            this.primaryKeyHeader = primaryKeyHeader;
+        }
+
+        public String getPrimaryKeyConflictStrategy() {
+            return primaryKeyConflictStrategy;
+        }
+
+        public void setPrimaryKeyConflictStrategy(String primaryKeyConflictStrategy) {
+            this.primaryKeyConflictStrategy = primaryKeyConflictStrategy;
+        }
+
+        public Integer getSegmentSize() {
+            return segmentSize;
+        }
+
+        public void setSegmentSize(Integer segmentSize) {
+            this.segmentSize = segmentSize;
+        }
+
+        public Integer getOverlapSize() {
+            return overlapSize;
+        }
+
+        public void setOverlapSize(Integer overlapSize) {
+            this.overlapSize = overlapSize;
+        }
     }
 
     // ==================== 内部数据类 ====================
@@ -67,15 +103,39 @@ public class TxtToTemplate {
         private String content;
         private int startPos;
         private int endPos;
+
         // getters/setters
-        public int getSegmentId() { return segmentId; }
-        public void setSegmentId(int segmentId) { this.segmentId = segmentId; }
-        public String getContent() { return content; }
-        public void setContent(String content) { this.content = content; }
-        public int getStartPos() { return startPos; }
-        public void setStartPos(int startPos) { this.startPos = startPos; }
-        public int getEndPos() { return endPos; }
-        public void setEndPos(int endPos) { this.endPos = endPos; }
+        public int getSegmentId() {
+            return segmentId;
+        }
+
+        public void setSegmentId(int segmentId) {
+            this.segmentId = segmentId;
+        }
+
+        public String getContent() {
+            return content;
+        }
+
+        public void setContent(String content) {
+            this.content = content;
+        }
+
+        public int getStartPos() {
+            return startPos;
+        }
+
+        public void setStartPos(int startPos) {
+            this.startPos = startPos;
+        }
+
+        public int getEndPos() {
+            return endPos;
+        }
+
+        public void setEndPos(int endPos) {
+            this.endPos = endPos;
+        }
     }
 
     public static class SegmentResult {
@@ -85,14 +145,37 @@ public class TxtToTemplate {
         private List<Map<String, Object>> rows; // 每行是列名到值的映射
 
         // getters/setters
-        public int getSegmentId() { return segmentId; }
-        public void setSegmentId(int segmentId) { this.segmentId = segmentId; }
-        public int getTotalRows() { return totalRows; }
-        public void setTotalRows(int totalRows) { this.totalRows = totalRows; }
-        public String getPrimaryKeyColumn() { return primaryKeyColumn; }
-        public void setPrimaryKeyColumn(String primaryKeyColumn) { this.primaryKeyColumn = primaryKeyColumn; }
-        public List<Map<String, Object>> getRows() { return rows; }
-        public void setRows(List<Map<String, Object>> rows) { this.rows = rows; }
+        public int getSegmentId() {
+            return segmentId;
+        }
+
+        public void setSegmentId(int segmentId) {
+            this.segmentId = segmentId;
+        }
+
+        public int getTotalRows() {
+            return totalRows;
+        }
+
+        public void setTotalRows(int totalRows) {
+            this.totalRows = totalRows;
+        }
+
+        public String getPrimaryKeyColumn() {
+            return primaryKeyColumn;
+        }
+
+        public void setPrimaryKeyColumn(String primaryKeyColumn) {
+            this.primaryKeyColumn = primaryKeyColumn;
+        }
+
+        public List<Map<String, Object>> getRows() {
+            return rows;
+        }
+
+        public void setRows(List<Map<String, Object>> rows) {
+            this.rows = rows;
+        }
     }
 
     /**
@@ -106,10 +189,22 @@ public class TxtToTemplate {
             this.row = row;
             this.segmentId = segmentId;
         }
-        public Object[] getRow() { return row; }
-        public void setRow(Object[] row) { this.row = row; }
-        public int getSegmentId() { return segmentId; }
-        public void setSegmentId(int segmentId) { this.segmentId = segmentId; }
+
+        public Object[] getRow() {
+            return row;
+        }
+
+        public void setRow(Object[] row) {
+            this.row = row;
+        }
+
+        public int getSegmentId() {
+            return segmentId;
+        }
+
+        public void setSegmentId(int segmentId) {
+            this.segmentId = segmentId;
+        }
     }
 
     // ==================== 统一入口 ====================
@@ -117,8 +212,8 @@ public class TxtToTemplate {
      * 多模板智能填充入口（无模板配置）
      */
     public static String process(List<File> readFiles, List<File> templateFiles, String userId,
-                                  FileService fileService, UserConfigService userConfigService,
-                                  ApiService apiService, String userDescription) {
+            FileService fileService, UserConfigService userConfigService,
+            ApiService apiService, String userDescription) {
         return process(readFiles, templateFiles, userId, fileService, userConfigService,
                 apiService, userDescription, null);
     }
@@ -127,12 +222,14 @@ public class TxtToTemplate {
      * 多模板智能填充入口（支持模板配置）
      */
     public static String process(List<File> readFiles, List<File> templateFiles, String userId,
-                                  FileService fileService, UserConfigService userConfigService,
-                                  ApiService apiService, String userDescription,
-                                  Map<String, TemplateFillConfig> templateConfigs) {
+            FileService fileService, UserConfigService userConfigService,
+            ApiService apiService, String userDescription,
+            Map<String, TemplateFillConfig> templateConfigs) {
         log.info("========== 开始执行多模板智能填充 ==========");
-        if (readFiles.isEmpty()) return "错误：未选择读取文件";
-        if (templateFiles.isEmpty()) return "错误：未选择模板文件";
+        if (readFiles.isEmpty())
+            return "错误：未选择读取文件";
+        if (templateFiles.isEmpty())
+            return "错误：未选择模板文件";
 
         int successCount = 0, failureCount = 0;
         List<String> failedTemplates = new ArrayList<>();
@@ -140,7 +237,8 @@ public class TxtToTemplate {
         try {
             // Step 1: 准备全局文本文件池
             log.info("[Step 1] 准备全局文本文件池...");
-            List<AIFileHelper.FileSummary> fileSummaries = AIFileHelper.prepareTextFiles(readFiles, userId, fileService);
+            List<AISwitchDocForFormFiller.FileSummary> fileSummaries = AISwitchDocForFormFiller
+                    .prepareTextFiles(readFiles, userId, fileService);
             log.info("[Step 1] 文本文件池准备完成，共 {} 个文件", fileSummaries.size());
 
             // Step 2: 处理每个模板文件
@@ -156,8 +254,10 @@ public class TxtToTemplate {
                 boolean templateSuccess = false;
 
                 try {
-                    TemplateFillConfig config = (templateConfigs != null) ? templateConfigs.get(templateFile.getId()) : null;
-                    if (config == null) config = new TemplateFillConfig();
+                    TemplateFillConfig config = (templateConfigs != null) ? templateConfigs.get(templateFile.getId())
+                            : null;
+                    if (config == null)
+                        config = new TemplateFillConfig();
 
                     String result = processSingleTemplate(templateFile, readFiles, fileSummaries, userId,
                             fileService, userConfigService, apiService, isWordTemplate,
@@ -181,8 +281,11 @@ public class TxtToTemplate {
                         log.info("检测到模板 {} 处理失败，开始清理临时文件（共 {} 个）",
                                 templateFile.getOriginalName(), tempFileIds.size());
                         for (String fileId : tempFileIds) {
-                            try { fileService.deleteFileById(fileId, userId); }
-                            catch (Exception ex) { log.warn("删除临时文件失败：{}", fileId, ex); }
+                            try {
+                                fileService.deleteFileById(fileId, userId);
+                            } catch (Exception ex) {
+                                log.warn("删除临时文件失败：{}", fileId, ex);
+                            }
                         }
                     }
                 }
@@ -205,14 +308,15 @@ public class TxtToTemplate {
     }
 
     private static boolean isWordFile(String fileName) {
-        if (fileName == null) return false;
+        if (fileName == null)
+            return false;
         String lower = fileName.toLowerCase();
         return lower.endsWith(".docx") || lower.endsWith(".doc");
     }
 
     // ==================== 单个模板处理 ====================
     private static String processSingleTemplate(
-            File templateFile, List<File> readFiles, List<AIFileHelper.FileSummary> fileSummaries,
+            File templateFile, List<File> readFiles, List<AISwitchDocForFormFiller.FileSummary> fileSummaries,
             String userId, FileService fileService, UserConfigService userConfigService,
             ApiService apiService, boolean isWordTemplate, Set<String> tempFileIds,
             String userDescription, TemplateFillConfig config) throws Exception {
@@ -220,7 +324,8 @@ public class TxtToTemplate {
         // 2.1 提取表头信息
         log.info("[Step 2.1] 开始提取模板表头信息...");
         Map<String, Object> headerInfo = extractHeaderInfo(templateFile, userId, fileService, isWordTemplate, config);
-        if (headerInfo == null) return "提取模板头信息失败";
+        if (headerInfo == null)
+            return "提取模板头信息失败";
         String headerFileId = (String) headerInfo.get("fileId");
         tempFileIds.add(headerFileId);
 
@@ -230,7 +335,7 @@ public class TxtToTemplate {
                 ? (List<Map<String, Object>>) headerInfo.get("tables")
                 : (List<Map<String, Object>>) headerInfo.get("sheets");
 
-        Map<Integer, List<String>> fileMapping = AIFileHelper.decideFileMapping(
+        Map<Integer, List<String>> fileMapping = AISwitchDocForFormFiller.decideFileMapping(
                 tablesOrSheets, fileSummaries, userDescription, userId, userConfigService, apiService);
         String mappingFileId = saveFileMapping(fileMapping, templateFile.getId(), userId, fileService);
         tempFileIds.add(mappingFileId);
@@ -238,7 +343,8 @@ public class TxtToTemplate {
         // 2.3 创建模板副本
         log.info("[Step 2.3] 开始创建模板副本...");
         String filledFileId = createTemplateCopy(templateFile, userId, fileService, isWordTemplate);
-        if (filledFileId == null) return "创建模板副本失败";
+        if (filledFileId == null)
+            return "创建模板副本失败";
         tempFileIds.add(filledFileId);
 
         // 2.4 按表格/工作表并行处理
@@ -248,8 +354,8 @@ public class TxtToTemplate {
             conflictStrategy = PRIMARY_KEY_CONFLICT_STRATEGY;
         } else {
             if (!"KEEP_FIRST".equalsIgnoreCase(conflictStrategy) &&
-                !"KEEP_LAST".equalsIgnoreCase(conflictStrategy) &&
-                !"MERGE".equalsIgnoreCase(conflictStrategy)) {
+                    !"KEEP_LAST".equalsIgnoreCase(conflictStrategy) &&
+                    !"MERGE".equalsIgnoreCase(conflictStrategy)) {
                 log.warn("无效的主键冲突策略 '{}'，使用默认 KEEP_FIRST", conflictStrategy);
                 conflictStrategy = "KEEP_FIRST";
             }
@@ -276,21 +382,22 @@ public class TxtToTemplate {
     }
 
     private static Map<String, Object> extractHeaderInfo(File templateFile, String userId,
-                                                          FileService fileService, boolean isWordTemplate,
-                                                          TemplateFillConfig config) throws Exception {
+            FileService fileService, boolean isWordTemplate,
+            TemplateFillConfig config) throws Exception {
         if (isWordTemplate) {
             return WordTableExtractorUtil.extractTables(templateFile, userId, fileService,
                     config.getHeaderRowCount(), config.getPrimaryKeyHeader());
         } else {
             int headerRowCount = config.getHeaderRowCount();
-            if (headerRowCount <= 0) headerRowCount = 1;
+            if (headerRowCount <= 0)
+                headerRowCount = 1;
             return HeaderExtractorUtil.extractTemplateHeaders(templateFile, userId, fileService,
                     config.getHeaderRowIndex(), headerRowCount, config.getPrimaryKeyHeader());
         }
     }
 
     private static String saveFileMapping(Map<Integer, List<String>> mapping, String templateFileId,
-                                          String userId, FileService fileService) throws Exception {
+            String userId, FileService fileService) throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         String json = mapper.writeValueAsString(mapping);
         MultipartFile file = JsonToExcelWriterUtil.createMultipartFile(
@@ -302,9 +409,10 @@ public class TxtToTemplate {
     }
 
     private static String createTemplateCopy(File templateFile, String userId,
-                                              FileService fileService, boolean isWordTemplate) throws Exception {
+            FileService fileService, boolean isWordTemplate) throws Exception {
         byte[] content = fileService.getFileContent(templateFile.getId(), userId);
-        if (content == null) return null;
+        if (content == null)
+            return null;
         String extension = isWordTemplate ? ".docx" : ".xlsx";
         String contentType = isWordTemplate
                 ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -317,9 +425,10 @@ public class TxtToTemplate {
     // ==================== 表格并行处理 ====================
     private static Map<Integer, List<Object[]>> processTablesParallel(
             List<Map<String, Object>> tablesOrSheets, Map<Integer, List<String>> fileMapping,
-            List<AIFileHelper.FileSummary> fileSummaries, String userId,
+            List<AISwitchDocForFormFiller.FileSummary> fileSummaries, String userId,
             FileService fileService, UserConfigService userConfigService, ApiService apiService,
-            String templateFileId, Set<String> tempFileIds, boolean isWordTemplate, String conflictStrategy) throws Exception {
+            String templateFileId, Set<String> tempFileIds, boolean isWordTemplate, String conflictStrategy)
+            throws Exception {
 
         Map<Integer, List<Object[]>> mergedData = new ConcurrentHashMap<>();
         ExecutorService executor = Executors.newFixedThreadPool(MAX_CONCURRENT_AI_CALLS);
@@ -345,7 +454,8 @@ public class TxtToTemplate {
                     } catch (Exception e) {
                         log.error("表格 {} 处理失败", tableIdx, e);
                     } finally {
-                        if (acquired) semaphore.release();
+                        if (acquired)
+                            semaphore.release();
                         latch.countDown();
                     }
                 });
@@ -361,11 +471,13 @@ public class TxtToTemplate {
 
     private static List<Object[]> processSingleTable(
             int tableIndex, Map<String, Object> tableInfo, List<String> fileIds,
-            List<AIFileHelper.FileSummary> fileSummaries, String userId,
+            List<AISwitchDocForFormFiller.FileSummary> fileSummaries, String userId,
             FileService fileService, UserConfigService userConfigService, ApiService apiService,
-            String templateFileId, Set<String> tempFileIds, boolean isWordTemplate, String conflictStrategy) throws Exception {
+            String templateFileId, Set<String> tempFileIds, boolean isWordTemplate, String conflictStrategy)
+            throws Exception {
 
-        if (fileIds == null || fileIds.isEmpty()) return new ArrayList<>();
+        if (fileIds == null || fileIds.isEmpty())
+            return new ArrayList<>();
 
         String mergedText = mergeFileTexts(fileIds, userId, fileService);
         List<TextSegment> segments = segmentText(mergedText);
@@ -382,12 +494,13 @@ public class TxtToTemplate {
         return tableRows;
     }
 
-    private static String mergeFileTexts(List<String> fileIds, String userId, FileService fileService) throws Exception {
+    private static String mergeFileTexts(List<String> fileIds, String userId, FileService fileService)
+            throws Exception {
         StringBuilder sb = new StringBuilder();
         List<String> sorted = new ArrayList<>(fileIds);
         Collections.sort(sorted);
         for (String fid : sorted) {
-            sb.append(AIFileHelper.getTextFileContent(fid, userId, fileService));
+            sb.append(AISwitchDocForFormFiller.getTextFileContent(fid, userId, fileService));
             sb.append("\n\n--- 文件分隔符 ---\n\n");
         }
         return sb.toString();
@@ -399,10 +512,12 @@ public class TxtToTemplate {
         while (nextStart < fullText.length()) {
             int segStart = nextStart;
             int segEnd = Math.min(nextStart + SEGMENT_SIZE, fullText.length());
-            if (segIndex > 0 && segStart > 0) segStart = Math.max(0, segStart - OVERLAP_SIZE);
+            if (segIndex > 0 && segStart > 0)
+                segStart = Math.max(0, segStart - OVERLAP_SIZE);
             if (segEnd < fullText.length()) {
                 int lastNewline = fullText.lastIndexOf('\n', segEnd);
-                if (lastNewline > segStart) segEnd = lastNewline + 1;
+                if (lastNewline > segStart)
+                    segEnd = lastNewline + 1;
             }
             TextSegment seg = new TextSegment();
             seg.setSegmentId(segIndex);
@@ -452,7 +567,8 @@ public class TxtToTemplate {
                         failureException.set(e);
                         log.error("段落 {} AI 提取失败", idx, e);
                     } finally {
-                        if (acquired) semaphore.release();
+                        if (acquired)
+                            semaphore.release();
                         latch.countDown();
                     }
                 });
@@ -484,15 +600,18 @@ public class TxtToTemplate {
     }
 
     private static SegmentResult callAIForSegment(TextSegment segment, Map<String, Object> tableInfo,
-                                                   String userId, UserConfigService userConfigService,
-                                                   ApiService apiService, boolean isWordTemplate) throws Exception {
+            String userId, UserConfigService userConfigService,
+            ApiService apiService, boolean isWordTemplate) throws Exception {
         UserConfig userConfig = userConfigService.getUserConfig(userId);
         String apiKey = (userConfig != null) ? userConfig.getSiliconFlowApiKey() : null;
         String apiUrl = (userConfig != null && userConfig.getSiliconFlowBaseUrl() != null)
-                ? userConfig.getSiliconFlowBaseUrl() : "https://api.siliconflow.com/v1";
+                ? userConfig.getSiliconFlowBaseUrl()
+                : "https://api.siliconflow.com/v1";
         String modelName = (userConfig != null && userConfig.getAnalysisModelName() != null)
-                ? userConfig.getAnalysisModelName() : "deepseek-ai/DeepSeek-V3.2";
-        if (apiKey == null || apiKey.isEmpty()) throw new Exception("未配置 API Key");
+                ? userConfig.getAnalysisModelName()
+                : "deepseek-ai/DeepSeek-V3.2";
+        if (apiKey == null || apiKey.isEmpty())
+            throw new Exception("未配置 API Key");
 
         StringBuilder prompt = new StringBuilder();
         prompt.append("请从以下文本中提取表格数据。\n\n");
@@ -514,7 +633,8 @@ public class TxtToTemplate {
         prompt.append("    {\n");
         for (int i = 0; i < headers.size(); i++) {
             prompt.append("      \"").append(headers.get(i)).append("\": \"单元格内容\"");
-            if (i < headers.size() - 1) prompt.append(",");
+            if (i < headers.size() - 1)
+                prompt.append(",");
             prompt.append("\n");
         }
         prompt.append("    },\n");
@@ -531,7 +651,8 @@ public class TxtToTemplate {
         prompt.append("7. 单元格中尽量不添加数据的单位\n");
         prompt.append("8. 确保尽可能找齐表头所对应的单元格数据\n");
 
-        String aiResponse = callAIWithRetry(prompt.toString(), apiUrl, apiKey, modelName, apiService, segment.getSegmentId());
+        String aiResponse = callAIWithRetry(prompt.toString(), apiUrl, apiKey, modelName, apiService,
+                segment.getSegmentId());
         if (aiResponse == null || aiResponse.trim().isEmpty())
             throw new Exception("AI service returned empty response - Segment " + segment.getSegmentId());
 
@@ -539,16 +660,18 @@ public class TxtToTemplate {
     }
 
     private static String callAIWithRetry(String prompt, String apiUrl, String apiKey,
-                                           String modelName, ApiService apiService, int segId) throws Exception {
+            String modelName, ApiService apiService, int segId) throws Exception {
         int maxRetries = 2;
         long wait = 1000;
         for (int r = 0; r <= maxRetries; r++) {
             try {
                 String resp = apiService.callExternalApi(apiUrl, apiKey, prompt, modelName);
-                if (resp != null && !resp.trim().isEmpty()) return resp;
+                if (resp != null && !resp.trim().isEmpty())
+                    return resp;
             } catch (Exception e) {
                 log.warn("段落 {} AI 调用失败 (尝试 {}/{}): {}", segId, r + 1, maxRetries + 1, e.getMessage());
-                if (r == maxRetries) throw e;
+                if (r == maxRetries)
+                    throw e;
                 Thread.sleep(wait);
                 wait *= 2;
             }
@@ -564,10 +687,12 @@ public class TxtToTemplate {
         mapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
         String json = extractJsonFromResponse(aiResponse);
-        if (json == null) throw new Exception("无法从 AI 响应中提取有效 JSON");
+        if (json == null)
+            throw new Exception("无法从 AI 响应中提取有效 JSON");
 
         JsonNode root = mapper.readTree(json);
-        if (root.has("segmentId")) result.setSegmentId(root.get("segmentId").asInt(segmentId));
+        if (root.has("segmentId"))
+            result.setSegmentId(root.get("segmentId").asInt(segmentId));
         if (root.has("primaryKeyColumn")) {
             result.setPrimaryKeyColumn(root.get("primaryKeyColumn").asText());
         }
@@ -576,7 +701,8 @@ public class TxtToTemplate {
         JsonNode rowsNode = root.get("rows");
         if (rowsNode != null && rowsNode.isArray()) {
             for (JsonNode rowNode : rowsNode) {
-                Map<String, Object> rowMap = mapper.convertValue(rowNode, new TypeReference<Map<String, Object>>() {});
+                Map<String, Object> rowMap = mapper.convertValue(rowNode, new TypeReference<Map<String, Object>>() {
+                });
                 rows.add(rowMap);
             }
         }
@@ -587,19 +713,22 @@ public class TxtToTemplate {
     }
 
     private static String extractJsonFromResponse(String response) {
-        if (response == null) return null;
+        if (response == null)
+            return null;
         String trimmed = response.trim();
-        if (trimmed.startsWith("{") && trimmed.endsWith("}")) return trimmed;
+        if (trimmed.startsWith("{") && trimmed.endsWith("}"))
+            return trimmed;
         String cleaned = trimmed.replaceAll("```json\\s*", "").replaceAll("```\\s*", "").trim();
-        if (cleaned.startsWith("{") && cleaned.endsWith("}")) return cleaned;
+        if (cleaned.startsWith("{") && cleaned.endsWith("}"))
+            return cleaned;
         int start = trimmed.indexOf('{');
         int end = trimmed.lastIndexOf('}');
         return (start >= 0 && end > start) ? trimmed.substring(start, end + 1) : null;
     }
 
     private static List<Object[]> mergeSegmentData(List<SegmentResult> segmentResults,
-                                                    Map<String, Object> tableInfo, String userId,
-                                                    FileService fileService, String conflictStrategy) throws Exception {
+            Map<String, Object> tableInfo, String userId,
+            FileService fileService, String conflictStrategy) throws Exception {
         List<String> headers = (List<String>) tableInfo.get("headers");
         int colCount = headers.size();
         String userPrimaryKeyHeader = (String) tableInfo.get("primaryKeyHeader");
@@ -632,7 +761,8 @@ public class TxtToTemplate {
                 int finalMaxCount = maxCount;
                 List<String> mostFrequentList = new ArrayList<>();
                 for (Map.Entry<String, Integer> entry : aiPrimaryKeyCounts.entrySet()) {
-                    if (entry.getValue() == finalMaxCount) mostFrequentList.add(entry.getKey());
+                    if (entry.getValue() == finalMaxCount)
+                        mostFrequentList.add(entry.getKey());
                 }
                 if (mostFrequentList.size() > 1) {
                     log.warn("AI 返回了多个出现次数相同的主键列名：{}，将选择第一个：{}", mostFrequentList, mostFrequentList.get(0));
@@ -662,7 +792,8 @@ public class TxtToTemplate {
         List<RowWithSegment> allRowsWithSegment = new ArrayList<>();
         for (SegmentResult seg : segmentResults) {
             List<Map<String, Object>> rows = seg.getRows();
-            if (rows == null) continue;
+            if (rows == null)
+                continue;
             for (Map<String, Object> rowMap : rows) {
                 Object[] rowArray = new Object[colCount];
                 for (int i = 0; i < colCount; i++) {
@@ -683,7 +814,8 @@ public class TxtToTemplate {
         for (Object o : row) {
             if (o != null) {
                 String s = o.toString().trim();
-                if (!s.isEmpty()) return false;
+                if (!s.isEmpty())
+                    return false;
             }
         }
         return true;
@@ -696,7 +828,8 @@ public class TxtToTemplate {
             int colCount,
             String conflictStrategy) {
 
-        if (allRowsWithSegment.isEmpty()) return new ArrayList<>();
+        if (allRowsWithSegment.isEmpty())
+            return new ArrayList<>();
 
         // 按段号分组
         Map<Integer, List<RowWithSegment>> segmentMap = new LinkedHashMap<>();
@@ -720,9 +853,11 @@ public class TxtToTemplate {
                         break;
                     }
                 }
-                if (!dup) uniqueInSegment.add(r);
+                if (!dup)
+                    uniqueInSegment.add(r);
             }
-            if (uniqueInSegment.isEmpty()) continue;
+            if (uniqueInSegment.isEmpty())
+                continue;
 
             if (processedRows.isEmpty()) {
                 // 第一段：直接添加所有行
@@ -797,54 +932,66 @@ public class TxtToTemplate {
             for (int i = 0; i < colCount; i++) {
                 if (row1.row[i] != null) {
                     String valStr = row1.row[i].toString().trim();
-                    if (!valStr.isEmpty()) mergedRow[i] = row1.row[i];
+                    if (!valStr.isEmpty())
+                        mergedRow[i] = row1.row[i];
                 }
             }
             for (int i = 0; i < colCount; i++) {
                 if (mergedRow[i] == null && row2.row[i] != null) {
                     String valStr = row2.row[i].toString().trim();
-                    if (!valStr.isEmpty()) mergedRow[i] = row2.row[i];
+                    if (!valStr.isEmpty())
+                        mergedRow[i] = row2.row[i];
                 }
             }
             boolean allNull = true;
             for (int i = 0; i < colCount; i++) {
-                if (mergedRow[i] != null) { allNull = false; break; }
+                if (mergedRow[i] != null) {
+                    allNull = false;
+                    break;
+                }
             }
-            if (allNull) mergedRow = row1.row;
+            if (allNull)
+                mergedRow = row1.row;
         } else if ("KEEP_LAST".equalsIgnoreCase(conflictStrategy)) {
             mergedRow = Arrays.copyOf(row2.row, colCount);
             if (pkColIndex != null) {
                 Object pk1 = row1.row[pkColIndex];
                 Object pk2 = row2.row[pkColIndex];
-                if (pk2 == null && pk1 != null) mergedRow[pkColIndex] = pk1;
+                if (pk2 == null && pk1 != null)
+                    mergedRow[pkColIndex] = pk1;
             }
         } else { // 默认 KEEP_FIRST
             mergedRow = Arrays.copyOf(row1.row, colCount);
             if (pkColIndex != null) {
                 Object pk1 = row1.row[pkColIndex];
                 Object pk2 = row2.row[pkColIndex];
-                if (pk1 == null && pk2 != null) mergedRow[pkColIndex] = pk2;
+                if (pk1 == null && pk2 != null)
+                    mergedRow[pkColIndex] = pk2;
             }
         }
         return new RowWithSegment(mergedRow, Math.min(row1.segmentId, row2.segmentId));
     }
 
     private static boolean arraysEqualAsStrings(Object[] a, Object[] b) {
-        if (a == b) return true;
-        if (a == null || b == null) return false;
-        if (a.length != b.length) return false;
+        if (a == b)
+            return true;
+        if (a == null || b == null)
+            return false;
+        if (a.length != b.length)
+            return false;
         for (int i = 0; i < a.length; i++) {
             String sa = a[i] != null ? a[i].toString() : "";
             String sb = b[i] != null ? b[i].toString() : "";
-            if (!sa.equals(sb)) return false;
+            if (!sa.equals(sb))
+                return false;
         }
         return true;
     }
 
     // ==================== 填充模板 ====================
     private static String fillTemplate(String filledFileId, Map<Integer, List<Object[]>> mergedTableData,
-                                        Map<String, Object> headerInfo, String userId, FileService fileService,
-                                        boolean isWordTemplate, String templateOriginalName) throws Exception {
+            Map<String, Object> headerInfo, String userId, FileService fileService,
+            boolean isWordTemplate, String templateOriginalName) throws Exception {
         if (isWordTemplate) {
             return WordSplicerUtil.fillWordTemplate(filledFileId, mergedTableData, headerInfo,
                     userId, fileService, templateOriginalName);
@@ -855,13 +1002,14 @@ public class TxtToTemplate {
                 String sheetName = (String) sheets.get(i).get("sheetName");
                 mergedSheetData.put(sheetName, mergedTableData.getOrDefault(i, new ArrayList<>()));
             }
-            return JsonToExcelWriterUtil.fillExcelTemplate(filledFileId, mergedSheetData, headerInfo, userId, fileService);
+            return JsonToExcelWriterUtil.fillExcelTemplate(filledFileId, mergedSheetData, headerInfo, userId,
+                    fileService);
         }
     }
 
     // ==================== 清理与移动 ====================
     private static void cleanupAndMoveResult(String resultFileId, Set<String> tempFileIds,
-                                              String userId, FileService fileService, boolean keepTextFiles) throws Exception {
+            String userId, FileService fileService, boolean keepTextFiles) throws Exception {
         File resultFile = fileService.getFileById(resultFileId, userId);
         if (resultFile != null) {
             fileService.moveFileToSection(resultFileId, "result", userId);
@@ -869,10 +1017,12 @@ public class TxtToTemplate {
         }
 
         for (String fileId : tempFileIds) {
-            if (fileId.equals(resultFileId)) continue;
+            if (fileId.equals(resultFileId))
+                continue;
             try {
                 File f = fileService.getFileById(fileId, userId);
-                if (f == null) continue;
+                if (f == null)
+                    continue;
                 if (keepTextFiles && f.getFileName() != null && f.getFileName().endsWith("_text.txt")) {
                     log.debug("保留文本文件: {}", f.getFileName());
                     continue;
