@@ -144,21 +144,53 @@ public class ExcelToTemplate {
                     ? (List<Map<String, Object>>) headerInfo.get("tables")
                     : (List<Map<String, Object>>) headerInfo.get("sheets");
             log.info("模板包含 {} 个{}}", tablesOrSheets.size(), isWordTemplate ? "表格" : "工作表");
+            System.out.println("模板包含 " + tablesOrSheets.size() + " 个" + (isWordTemplate ? "表格" : "工作表"));
+            for (int i = 0; i < tablesOrSheets.size(); i++) {
+                Map<String, Object> tableOrSheet = tablesOrSheets.get(i);
+                String name = (String) tableOrSheet.get(isWordTemplate ? "tableId" : "sheetName");
+                List<String> headers = (List<String>) tableOrSheet.get("headers");
+                
+                System.out.println("\n=== " + (isWordTemplate ? "表格" : "工作表") + " " + i + " ===");
+                System.out.println("名称：" + name);
+                System.out.println("表头数量：" + (headers != null ? headers.size() : 0));
+                
+                if (headers != null && !headers.isEmpty()) {
+                    System.out.println("表头列表:");
+                    for (int j = 0; j < headers.size(); j++) {
+                        System.out.println("  [" + j + "] " + headers.get(j));
+                    }
+                } else {
+                    System.out.println("表头列表：无");
+                }
+            }
 
-            // 步骤 3: AI 解析用户消息，提取筛选参数
+            // 步骤 3: AI 解析用户消息，提取筛选参数（已获得每个表的筛选条件映射）
             log.info("【步骤 3】AI 解析用户消息，提取筛选参数...");
-            FilterCriteria filterCriteria = parseFilterCriteriaFromUserMessage(
-                    userMessage, excelData, tablesOrSheets.get(0), userId, userConfigService, apiService);
-            log.info("AI 解析的筛选条件：{}", filterCriteria);
 
-            // 步骤 4: 根据筛选条件过滤数据
-            log.info("【步骤 4】根据筛选条件过滤数据...");
-            List<Map<String, Object>> filteredData = applyFilterCriteria(excelData, filterCriteria);
-            log.info("过滤后剩余 {} 行数据", filteredData.size());
+            Map<Integer, FilterCriteria> sheetFilterCriteriaMap = parseFilterCriteriaFromUserMessage(
+                    userMessage, excelData, tablesOrSheets, isWordTemplate, userId, userConfigService, apiService);
+            log.info("AI 解析的多表筛选条件：{}", sheetFilterCriteriaMap);
 
-            // 步骤 5: 为每个表格/工作表准备数据
+            // 步骤 4: 为每个表/工作表独立过滤数据
+            log.info("【步骤 4】为每个表/工作表独立过滤数据...");
+            Map<Integer, List<Map<String, Object>>> filteredDataPerTable = new HashMap<>();
+
+            for (int i = 0; i < tablesOrSheets.size(); i++) {
+                FilterCriteria criteria = sheetFilterCriteriaMap.getOrDefault(i, new FilterCriteria());
+                List<Map<String, Object>> filtered;
+                if (criteria.getFilters().isEmpty()) {
+                    filtered = excelData; // 无筛选条件则使用全部数据
+                    log.info("表 {} 无筛选条件，使用全部 {} 行数据", i, filtered.size());
+                } else {
+                    filtered = applyFilterCriteria(excelData, criteria);
+                    log.info("表 {} 应用筛选条件后，数据从 {} 行减少到 {} 行", i, excelData.size(), filtered.size());
+                }
+                filteredDataPerTable.put(i, filtered);
+            }
+
+            // 步骤 5: 为每个表格/工作表准备数据（传入过滤后的数据映射）
             log.info("【步骤 5】准备填充数据...");
-            Map<Integer, List<Object[]>> tableDataMap = prepareDataForTables(filteredData, tablesOrSheets);
+            Map<Integer, List<Object[]>> tableDataMap = prepareDataForTables(filteredDataPerTable, tablesOrSheets);
 
             // 步骤 6: 创建模板副本
             log.info("【步骤 6】创建模板副本...");
@@ -199,9 +231,14 @@ public class ExcelToTemplate {
             log.info("【步骤 8】清理临时文件并移动结果...");
             cleanupAndMoveResult(resultFileId, tempFileIds, userId, fileService);
 
+            // 计算筛选后的总行数
+            int totalFilteredRows = filteredDataPerTable.values().stream()
+                    .mapToInt(List::size)
+                    .sum();
+            
             log.info("========== Excel 到{}模板填表处理完成 ==========", isWordTemplate ? "Word" : "Excel");
             return String.format("✅ 已完成智能填表操作，从 %d 行数据中筛选出 %d 行并填充到模板",
-                    excelData.size(), filteredData.size());
+                    excelData.size(), totalFilteredRows);
 
         } catch (Exception e) {
             log.error("Excel 到模板填表处理失败", e);
@@ -301,14 +338,14 @@ public class ExcelToTemplate {
     }
 
     /**
-     * 为每个表格/工作表准备数据
+     * 为每个表格/工作表准备数据（支持每个表独立的数据源）
      * 
-     * @param excelData      Excel 数据
-     * @param tablesOrSheets 表格/工作表信息列表
-     * @return 表格索引到行数据的映射
+     * @param filteredDataPerTable 每个表索引对应的过滤后数据列表
+     * @param tablesOrSheets       表格/工作表信息列表
+     * @return 表格索引到行数据（Object[]）的映射
      */
     private static Map<Integer, List<Object[]>> prepareDataForTables(
-            List<Map<String, Object>> excelData,
+            Map<Integer, List<Map<String, Object>>> filteredDataPerTable,
             List<Map<String, Object>> tablesOrSheets) {
 
         Map<Integer, List<Object[]>> tableDataMap = new HashMap<>();
@@ -318,8 +355,10 @@ public class ExcelToTemplate {
             Map<String, Object> tableInfo = tablesOrSheets.get(i);
             List<String> targetHeaders = (List<String>) tableInfo.get("headers");
 
+            List<Map<String, Object>> dataForThisTable = filteredDataPerTable.getOrDefault(i, new ArrayList<>());
+
             List<Object[]> rows = new ArrayList<>();
-            for (Map<String, Object> rowData : excelData) {
+            for (Map<String, Object> rowData : dataForThisTable) {
                 Object[] rowArray = new Object[targetHeaders.size()];
                 for (int j = 0; j < targetHeaders.size(); j++) {
                     String header = targetHeaders.get(j);
@@ -433,23 +472,25 @@ public class ExcelToTemplate {
     /**
      * AI 解析用户消息，提取筛选参数
      */
-    private static FilterCriteria parseFilterCriteriaFromUserMessage(
+    private static Map<Integer, FilterCriteria> parseFilterCriteriaFromUserMessage(
             String userMessage, List<Map<String, Object>> excelData,
-            Map<String, Object> tableInfo, String userId,
-            UserConfigService userConfigService, ApiService apiService) throws Exception {
+            List<Map<String, Object>> tablesOrSheets, boolean isWordTemplate,
+            String userId, UserConfigService userConfigService, ApiService apiService) throws Exception {
 
         // 获取用户配置
         UserConfig userConfig = userConfigService.getUserConfig(userId);
         if (userConfig == null) {
             log.warn("未找到用户配置，使用默认筛选条件（不过滤）");
-            return new FilterCriteria();
+            return new HashMap<>();
         }
 
         // 构建 AI 提示词
-        String prompt = buildFilterCriteriaPrompt(userMessage, excelData, tableInfo);
+        String prompt = buildFilterCriteriaPrompt(userMessage, excelData, tablesOrSheets, isWordTemplate);
 
         // 调用 AI 服务
         String aiResponse = callAIWithRetry(prompt, userConfig, apiService);
+
+        System.out.println("AI 响应：" + aiResponse);
 
         // 解析 AI 响应
         return parseFilterCriteriaFromAIResponse(aiResponse);
@@ -459,17 +500,16 @@ public class ExcelToTemplate {
      * 构建筛选参数提取的 AI 提示词
      */
     private static String buildFilterCriteriaPrompt(String userMessage, List<Map<String, Object>> excelData,
-            Map<String, Object> tableInfo) {
+            List<Map<String, Object>> tablesOrSheets, boolean isWordTemplate) {
         StringBuilder prompt = new StringBuilder();
         prompt.append("你是一个智能填表助手，需要从用户消息中提取数据筛选条件。\n\n");
         prompt.append("【用户消息】\n").append(userMessage).append("\n\n");
 
-        // 提供数据示例
+        // 提供数据示例（仅用于参考列名）
         if (!excelData.isEmpty()) {
-            prompt.append("【可用数据列】\n");
+            prompt.append("【可用数据列（示例）】\n");
             excelData.get(0).keySet().forEach(col -> prompt.append("- ").append(col).append("\n"));
             prompt.append("\n");
-
             prompt.append("【数据示例（前 3 行）】\n");
             for (int i = 0; i < Math.min(3, excelData.size()); i++) {
                 prompt.append("行").append(i + 1).append(": ").append(excelData.get(i)).append("\n");
@@ -477,25 +517,99 @@ public class ExcelToTemplate {
             prompt.append("\n");
         }
 
-        // 提供表头信息
-        List<String> headers = (List<String>) tableInfo.get("headers");
-        prompt.append("【目标表格表头】\n");
-        headers.forEach(h -> prompt.append("- ").append(h).append("\n"));
-        prompt.append("\n");
+        // 列出所有表格/工作表的信息
+        prompt.append("【目标模板中包含的表格/工作表信息】\n");
+        for (int i = 0; i < tablesOrSheets.size(); i++) {
+            Map<String, Object> tableInfo = tablesOrSheets.get(i);
+            String name = (String) tableInfo.get(isWordTemplate ? "tableId" : "sheetName");
+            List<String> headers = (List<String>) tableInfo.get("headers");
+            prompt.append("表 ").append(i).append(" (索引: ").append(i).append(", 名称: ").append(name).append("):\n");
+            prompt.append("  表头列表:\n");
+            for (String header : headers) {
+                prompt.append("    - ").append(header).append("\n");
+            }
+            prompt.append("\n");
+        }
 
-        // 说明输出格式
+        // 输出格式要求
         prompt.append("【任务要求】\n");
-        prompt.append("请从用户消息中提取筛选条件，并以 JSON 格式返回：\n");
+        prompt.append("请根据用户消息，为每个表格/工作表提取对应的筛选条件。返回 JSON 格式如下：\n");
         prompt.append("{\n");
-        prompt.append("  \"filters\": [\n");
+        prompt.append("  \"sheets\": [\n");
         prompt.append("    {\n");
-        prompt.append("      \"column\": \"列名\",\n");
-        prompt.append("      \"mode\": 0/1/2/3/4 (0:单项匹配，1:比较匹配，2:范围匹配，3:多选匹配，4:行号匹配),\n");
-        prompt.append("      \"values\": [\"值 1\", \"值 2\", ...]\n");
-        prompt.append("    }\n");
+        prompt.append("      \"sheetIndex\": 0,  // 对应上述表格的索引\n");
+        prompt.append("      \"filters\": [\n");
+        prompt.append("        {\n");
+        prompt.append("          \"column\": \"列名\",\n");
+        prompt.append("          \"mode\": 0,  // 0=单项匹配，1=比较，2=范围，3=多选，4=行号\n");
+        prompt.append("          \"values\": [\"값 1\", \"값 2\"]\n");
+        prompt.append("        }\n");
+        prompt.append("      ]\n");
+        prompt.append("    },\n");
+        prompt.append("    ... // 每个表格一个对象\n");
         prompt.append("  ]\n");
         prompt.append("}\n\n");
+
+        // 详细说明模式识别规则
+        prompt.append("【筛选模式识别规则】\n");
+        prompt.append("根据用户消息中的关键词，确定筛选模式（mode）和对应的值（values）：\n\n");
+
+        prompt.append("1. mode=0（单项精确匹配）：精确匹配单个值\n");
+        prompt.append("   - 关键词：\"为\"、\"是\"、\"等于\"\n");
+        prompt.append("   - ⚠️ **重要：如果值被引号括起来（如\"[20,30)\"），必须使用 mode=0，将整个引号内容作为精确匹配值**\n");
+        prompt.append("   - 示例：\"年龄为'[20,30)'\" → {\"column\":\"年龄\",\"mode\":0,\"values\":[\"[20,30)\"]}\n");
+        prompt.append("   - 示例：\"性别为'Female'\" → {\"column\":\"性别\",\"mode\":0,\"values\":[\"Female\"]}\n");
+        prompt.append("   - 示例：\"城市为北京\" → {\"column\":\"城市\",\"mode\":0,\"values\":[\"北京\"]}\n\n");
+
+        prompt.append("2. mode=1（比较匹配）：数值或日期的大小比较\n");
+        prompt.append("   - 关键词：\"大于\"、\"小于\"、\"超过\"、\"低于\"、\">\"、\"<\"\n");
+        prompt.append("   - values[0]=被比较的值，values[1]=比较符号（\">\",\"<\",\">=\",\"<=\"）\n");
+        prompt.append("   - 示例：\"温度大于 14\" → {\"column\":\"温度\",\"mode\":1,\"values\":[\"14\",\">\"]}\n\n");
+
+        prompt.append("3. mode=2（范围匹配）：连续范围（仅用于数值或日期）\n");
+        prompt.append("   - 关键词：\"从 X 到 Y\"、\"X~Y\"、\"介于 X 和 Y 之间\"\n");
+        prompt.append("   - ⚠️ **注意：只有当描述的是真正的数值/日期范围时才用 mode=2，引号中的字符串不是范围**\n");
+        prompt.append(
+                "   - 示例：\"日期从 2020/1/1 到 2020/8/31\" → {\"column\":\"日期\",\"mode\":2,\"values\":[\"2020/1/1\",\"2020/8/31\"]}\n");
+        prompt.append("   - ❌ 错误：\"年龄为'[20,30)'\" → 不应该用 mode=2，应该用 mode=0\n\n");
+
+        prompt.append("4. mode=3（多选匹配）：同一列的多个可选值\n");
+        prompt.append("   - 关键词：\"或\"、\"或者\"、\"、\"（顿号）、\"和\"（表示选择）\n");
+        prompt.append("   - 示例：\"城市为北京或上海\" → {\"column\":\"城市\",\"mode\":3,\"values\":[\"北京\",\"上海\"]}\n");
+        prompt.append(
+                "   - 示例：\"性别为 Female 或 Male\" → {\"column\":\"性别\",\"mode\":3,\"values\":[\"Female\",\"Male\"]}\n\n");
+
+        prompt.append("5. mode=4（行号匹配）：指定行号\n");
+        prompt.append("   - 关键词：\"第 X 行\"\n");
+        prompt.append("   - column 固定为\"行号\"，values 为行号列表\n");
+        prompt.append("   - 示例：\"选取第 1 行和第 2 行\" → {\"column\":\"行号\",\"mode\":4,\"values\":[\"1\",\"2\"]}\n");
+        prompt.append("   - 示例：\"只填第 3 行、第 5 行\" → {\"column\":\"行号\",\"mode\":4,\"values\":[\"3\",\"5\"]}\n\n");
+
+        // 强调引号处理规则
+        prompt.append("⚠️【引号内容处理规则】\n");
+        prompt.append("**如果用户消息中某个值被引号括起来（单引号' '或双引号\" \"），该值应作为一个整体进行精确匹配（mode=0）**\n");
+        prompt.append("- ✅ 正确：\"年龄为'[20,30)'\" → mode=0, values=[\"[20,30)\"]\n");
+        prompt.append("- ✅ 正确：\"标签为'VIP'\" → mode=0, values=[\"VIP\"]\n");
+        prompt.append("- ❌ 错误：\"年龄为'[20,30)'\" → mode=2, values=[\"20\",\"30\"]（引号表示这是一个字符串，不是范围）\n");
+        prompt.append("- ❌ 错误：\"年龄为'[20,30)'\" → mode=1, values=[\"20\",\">\"]（同上）\n\n");
+
+        // 说明多条件组合逻辑
+        prompt.append("【多条件组合规则】\n");
+        prompt.append("- 如果用户说\"A 为 X 和 B 为 Y\"（两个不同的列），表示\"且关系\"，需要同时满足\n");
+        prompt.append("  示例：\"日期为 2025/7/21 且城市为德州市\" → filters 数组包含两个条件\n");
+        prompt.append("- 如果用户说\"A 为 X 或 A 为 Y\"（同一列的多个值），使用 mode=3（多选匹配）\n");
+        prompt.append("  示例：\"城市为北京或上海\" → 单个条件，mode=3, values=[\"北京\",\"上海\"]\n\n");
+
+        prompt.append("【注意事项】\n");
+        prompt.append("1. 必须验证列名是否存在于【可用数据列】中，不要编造不存在的列名\n");
+        prompt.append("2. 日期格式保持与用户输入一致（如 2025/7/21、2025-07-21 等）\n");
+        prompt.append("3. 数值不需要添加单位（如 14 度提取为 14）\n");
+        prompt.append("4. **引号中的内容必须作为完整的字符串处理，不要拆分或解释**\n");
+        prompt.append("5. 如果没有明确的筛选条件，返回空数组：\"filters\": []\n\n");
+
         prompt.append("直接返回 JSON，不要有任何说明文字。\n");
+
+        System.out.println("AI 提示词：" + prompt.toString());
 
         return prompt.toString();
     }
@@ -533,31 +647,36 @@ public class ExcelToTemplate {
     /**
      * 从 AI 响应中解析筛选参数
      */
-    private static FilterCriteria parseFilterCriteriaFromAIResponse(String aiResponse) throws Exception {
-        FilterCriteria criteria = new FilterCriteria();
-
+    private static Map<Integer, FilterCriteria> parseFilterCriteriaFromAIResponse(String aiResponse) throws Exception {
+        Map<Integer, FilterCriteria> result = new HashMap<>();
         try {
             // 提取 JSON 部分
             String jsonContent = extractJsonFromResponse(aiResponse);
 
             ObjectMapper mapper = new ObjectMapper();
-            Map<String, Object> jsonMap = mapper.readValue(jsonContent, Map.class);
-
-            List<Map<String, Object>> filters = (List<Map<String, Object>>) jsonMap.getOrDefault("filters",
-                    new ArrayList<>());
-
-            for (Map<String, Object> filter : filters) {
-                String column = (String) filter.getOrDefault("column", "");
-                int mode = ((Number) filter.getOrDefault("mode", 0)).intValue();
-                List<String> values = (List<String>) filter.getOrDefault("values", new ArrayList<>());
-
-                criteria.addFilter(column, mode, values);
+            Map<String, Object> root = mapper.readValue(jsonContent, Map.class);
+            List<Map<String, Object>> sheets = (List<Map<String, Object>>) root.getOrDefault("sheets", new ArrayList<>());
+            
+            for (Map<String, Object> sheet : sheets) {
+                int sheetIndex = ((Number) sheet.getOrDefault("sheetIndex", -1)).intValue();
+                if (sheetIndex < 0) continue;
+                
+                List<Map<String, Object>> filters = (List<Map<String, Object>>) sheet.getOrDefault("filters", new ArrayList<>());
+                FilterCriteria criteria = new FilterCriteria();
+                
+                for (Map<String, Object> filter : filters) {
+                    String column = (String) filter.getOrDefault("column", "");
+                    int mode = ((Number) filter.getOrDefault("mode", 0)).intValue();
+                    List<String> values = (List<String>) filter.getOrDefault("values", new ArrayList<>());
+                    criteria.addFilter(column, mode, values);
+                }
+                
+                result.put(sheetIndex, criteria);
             }
         } catch (Exception e) {
-            log.warn("解析 AI 响应失败，使用默认筛选条件（不过滤）: {}", e.getMessage());
+            log.warn("解析 AI 响应失败，返回空筛选条件：{}", e.getMessage());
         }
-
-        return criteria;
+        return result;
     }
 
     /**

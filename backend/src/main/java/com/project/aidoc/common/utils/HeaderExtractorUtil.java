@@ -38,6 +38,10 @@ public class HeaderExtractorUtil {
 
         // 调用 ExcelSheetExtractorUtil 提取工作表信息
         List<Map<String, Object>> sheets = ExcelSheetExtractorUtil.extractSheets(templateContent, headerRowIndex, headerRowCount, primaryKeyHeader);
+        
+        for (Map<String, Object> sheet : sheets) {
+            sheet.put("fileName", templateFile.getOriginalName());
+        }
 
         Map<String, Object> headerInfo = new HashMap<>();
         headerInfo.put("fileId", templateFile.getId());

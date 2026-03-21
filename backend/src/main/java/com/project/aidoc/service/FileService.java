@@ -24,4 +24,6 @@ public interface FileService {
     byte[] getFileContent(String fileId, String userId);
 
     File getFileById(String fileId, String userId);
+    
+    void cleanTempFiles(String userId);
 }

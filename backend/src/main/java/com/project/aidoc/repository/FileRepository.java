@@ -10,4 +10,5 @@ public interface FileRepository extends MongoRepository<File, String> {
     List<File> findByUserId(String userId);
     List<File> findByUserIdAndSection(String userId, String section);
     void deleteByUserIdAndId(String userId, String fileId);
+    void deleteByUserIdAndSection(String userId, String section);
 }

@@ -128,6 +128,7 @@ public class WordTableExtractorUtil {
 
                 Map<String, Object> tableInfo = new LinkedHashMap<>();
                 tableInfo.put("tableIndex", i);
+                tableInfo.put("fileName", templateFile.getOriginalName());
                 tableInfo.put("sheetDiscription1", description1.toString());
                 tableInfo.put("sheetDiscription2", description2.toString());
                 tableInfo.put("headers", headers);

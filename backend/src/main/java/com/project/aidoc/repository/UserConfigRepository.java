@@ -21,4 +21,11 @@ public interface UserConfigRepository extends MongoRepository<UserConfig, String
      * 根据用户 ID 删除所有配置
      */
     void deleteByUserId(String userId);
+    
+    /**
+     * 删除用户的过期配置（保留最新的配置）
+     * @param userId 用户 ID
+     * @param latestConfigId 最新配置 ID（需要保留的）
+     */
+    void deleteByUserIdAndIdNot(String userId, String latestConfigId);
 }

@@ -97,10 +97,10 @@ class _LoginPageState extends State<LoginPage> {
         if (data['code'] == 200) {
           // 用户已经登录，更新本地认证状态
           await AuthConfig.setLoggedIn(
-            data['data']['token'] ?? '', 
+            data['data']['token'] ?? '',
             data['data']['username'] ?? '',
           );
-          
+
           // 重定向到主页并清除导航栈
           if (mounted) {
             Navigator.of(context).pushAndRemoveUntil(
@@ -135,26 +135,28 @@ class _LoginPageState extends State<LoginPage> {
       String baseUrl = ServerConfig.baseUrl;
       String loginUrl = '$baseUrl/api/v1/auth/login';
 
-      final response = await http.post(
-        Uri.parse(loginUrl),
-        headers: <String, String>{
-          'Content-Type': 'application/json; charset=UTF-8',
-        },
-        body: jsonEncode(<String, String>{
-          'username': _usernameController.text,
-          'password': _passwordController.text,
-        }),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            Uri.parse(loginUrl),
+            headers: <String, String>{
+              'Content-Type': 'application/json; charset=UTF-8',
+            },
+            body: jsonEncode(<String, String>{
+              'username': _usernameController.text,
+              'password': _passwordController.text,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['code'] == 200) {
           // 登录成功，保存认证信息
           await AuthConfig.setLoggedIn(
-            data['data']['token'], 
+            data['data']['token'],
             data['data']['username'],
           );
-          
+
           // 跳转到主页并清除导航栈
           if (mounted) {
             Navigator.of(context).pushAndRemoveUntil(
@@ -190,8 +192,8 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _register() async {
-    if (_usernameController.text.isEmpty || 
-        _passwordController.text.isEmpty || 
+    if (_usernameController.text.isEmpty ||
+        _passwordController.text.isEmpty ||
         _emailController.text.isEmpty) {
       setState(() {
         _errorMessage = '用户名、邮箱和密码不能为空';
@@ -210,17 +212,19 @@ class _LoginPageState extends State<LoginPage> {
       String baseUrl = ServerConfig.baseUrl;
       String registerUrl = '$baseUrl/api/v1/auth/register';
 
-      final response = await http.post(
-        Uri.parse(registerUrl),
-        headers: <String, String>{
-          'Content-Type': 'application/json; charset=UTF-8',
-        },
-        body: jsonEncode(<String, dynamic>{
-          'username': _usernameController.text,
-          'password': _passwordController.text,
-          'email': _emailController.text,
-        }),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            Uri.parse(registerUrl),
+            headers: <String, String>{
+              'Content-Type': 'application/json; charset=UTF-8',
+            },
+            body: jsonEncode(<String, dynamic>{
+              'username': _usernameController.text,
+              'password': _passwordController.text,
+              'email': _emailController.text,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -265,10 +269,11 @@ class _LoginPageState extends State<LoginPage> {
       appBar: AppBar(
         title: Text(
           _showRegisterForm ? '注册' : '登录',
-          style: Theme.of(context).textTheme.titleLarge, // 使用主题标题样式
+          style: TextStyle(color: Colors.grey[700]), // 使用深灰色字体，与主页保持一致
         ),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // 确保不显示返回按钮，按照AppBar返回按钮控制规范
+        foregroundColor: Colors.grey[700], // 设置图标和按钮为深灰色，与主页保持一致
+        // 确保不显示返回按钮，按照 AppBar 返回按钮控制规范
         automaticallyImplyLeading: false,
       ),
       body: Center(
@@ -335,7 +340,8 @@ class _LoginPageState extends State<LoginPage> {
                     if (_showErrorTip && _errorMessage.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 16),
-                        child: ErrorTips(_errorMessage, 
+                        child: ErrorTips(
+                          _errorMessage,
                           onTap: () {
                             setState(() {
                               _showErrorTip = false;
@@ -370,9 +376,7 @@ class _LoginPageState extends State<LoginPage> {
                         });
                       },
                       child: Text(
-                        _showRegisterForm
-                            ? '已有账户？点击登录'
-                            : '没有账户？点击注册',
+                        _showRegisterForm ? '已有账户？点击登录' : '没有账户？点击注册',
                       ),
                     ),
                   ],

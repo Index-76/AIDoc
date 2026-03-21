@@ -72,7 +72,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'AIDoc - 文档管理系统',
+      title: 'AIDoc - 智能文档处理平台',
       debugShowCheckedModeBanner: false,
       theme: FontConfig.createTheme(),
       initialRoute: '/init',
