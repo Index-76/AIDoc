@@ -773,7 +773,41 @@ class ApiService {
     }
   }
 
-  // 工具功能API
+  // 清理缓存 API
+  static Future<Map<String, dynamic>> cleanCache(String cleanContent) async {
+    try {
+      String baseUrl = ServerConfig.baseUrl;
+      String cleanUrl = '$baseUrl/api/v1/auth/clean';
+
+      final response = await http
+          .post(
+            Uri.parse(cleanUrl),
+            headers: <String, String>{
+              'Content-Type': 'application/json; charset=UTF-8',
+              'Authorization': 'Bearer ${AuthConfig.getUserToken() ?? ''}',
+            },
+            body: jsonEncode(<String, String>{
+              'cleanContent': cleanContent,
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        Map<String, dynamic> data = jsonDecode(response.body);
+        return data;
+      } else {
+        return {
+          'code': response.statusCode,
+          'message': '清理缓存失败',
+          'data': null
+        };
+      }
+    } catch (e) {
+      return {'code': -1, 'message': '网络请求失败', 'data': null};
+    }
+  }
+
+  // 工具功能 API
   static Future<Map<String, dynamic>> getDocument(String docId) async {
     try {
       String baseUrl = ServerConfig.baseUrl;

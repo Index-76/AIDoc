@@ -35,6 +35,20 @@ public class ApiService {
      * @return API响应结果
      */
     public String callExternalApi(String apiUrl, String apiKey, String prompt, String model) {
+        return callExternalApi(apiUrl, apiKey, prompt, model, false);
+    }
+    
+    /**
+     * 调用外部API（支持推理模式）
+     * 
+     * @param apiUrl API地址
+     * @param apiKey API密钥
+     * @param prompt 提示词
+     * @param model  模型名称
+     * @param enableThinking 是否启用推理模式
+     * @return API响应结果
+     */
+    public String callExternalApi(String apiUrl, String apiKey, String prompt, String model, boolean enableThinking) {
         try {
             // 输入验证
             if (apiUrl == null || apiUrl.isEmpty()) {
@@ -68,6 +82,12 @@ public class ApiService {
             requestBody.put("messages", List.of(message));
             requestBody.put("max_tokens", 8096);
             requestBody.put("temperature", 0.7);
+            
+            // 启用推理模式
+            if (enableThinking && model == "deepseek-ai/DeepSeek-V3.2") {
+                requestBody.put("enable_thinking", true);
+                System.out.println("已启用推理模式，模型：" + model);
+            }
 
             // 发送请求
             HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestBody, headers);

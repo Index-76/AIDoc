@@ -9,6 +9,8 @@ import 'login_page.dart';
 import 'widgets/file_section.dart';
 import 'widgets/chat_message_item.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter_markdown/flutter_markdown.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,7 +24,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'AI智能文档助手',
+      title: 'AIDoc智能文档处理平台',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
@@ -133,13 +135,16 @@ class _MyHomePageState extends State<MyHomePage> {
   // 应用级别的初始化锁
   static bool _appLevelInitLock = false;
 
-  // SSE相关变量
+  // SSE 连接数限制
+  static const int _maxSseConnections = 3;
+
+  // SSE 相关变量
   String? _toolStatusText; // 当前工具提示文本
   String? _lastToolName; // 记录最后一次使用的工具名称
   int? _lastToolValue; // 记录最后一次使用的工具值（用于判断是否需要刷新结果区）
   Map<String, StreamSubscription<String>> _sseSubscriptions = {};
-  List<String> _sseConnectionOrder = []; // 按连接时间顺序存储会话ID，最早的在前面
-  bool _isSseConnected = false; // SSE连接状态
+  List<String> _sseConnectionOrder = []; // 按连接时间顺序存储会话 ID，最早的在前面
+  bool _isSseConnected = false; // SSE 连接状态
 
   String? _pendingSwitchSessionId; // 当前正在处理的切换目标
 
@@ -214,30 +219,12 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
-  // 创建新对话
-  Future<void> _createNewChat() async {
+  // 创建新对话（新增 showTip 参数，控制是否显示成功提示）
+  Future<void> _createNewChat({bool showTip = true}) async {
     // 防止重复创建
     if (_isCreatingChat) {
       _logger.d('正在创建对话中，跳过重复创建');
       return;
-    }
-
-    // 检查当前会话是否有新内容，如果没有新内容则不创建
-    if (_currentSessionId != null && _messages.isNotEmpty) {
-      // 检查是否只有欢迎消息（通常只有一条AI消息）
-      bool hasOnlyWelcomeMessage =
-          _messages.length == 1 && !_messages[0].isUser;
-
-      // 如果没有用户发送的消息，则认为没有新内容
-      if (hasOnlyWelcomeMessage) {
-        if (mounted) {
-          TooltipUtil.showTooltip(
-            '当前对话没有新内容，无需创建新对话',
-            TooltipPosition.windowCenter,
-          );
-        }
-        return;
-      }
     }
 
     setState(() {
@@ -245,12 +232,84 @@ class _MyHomePageState extends State<MyHomePage> {
     });
 
     try {
+      // 检查当前会话是否有新内容，如果没有新内容则不创建
+      if (_currentSessionId != null && _messages.isNotEmpty) {
+        // 检查是否只有欢迎消息（通常只有一条 AI 消息）
+        bool hasOnlyWelcomeMessage =
+            _messages.length == 1 && !_messages[0].isUser;
+
+        // 如果没有用户发送的消息，则认为没有新内容
+        if (hasOnlyWelcomeMessage) {
+          if (mounted && showTip) {
+            TooltipUtil.showTooltip(
+              '当前对话没有新内容，无需创建新对话',
+              TooltipPosition.windowCenter,
+            );
+          }
+          return;
+        }
+      }
+
+      // 刷新对话列表，获取最新会话列表
+      await _loadChatSessions();
+
+      // 如果对话列表为空，直接创建新对话
+      if (_chatSessions.isEmpty) {
+        await _doCreateNewChatInternal(showTip: showTip);
+        return;
+      }
+
+      // 获取最近一条对话（列表中最后一个）
+      final latestSession = _chatSessions.last;
+      final latestSessionId = latestSession['id'];
+
+      // 如果最近一条对话不是当前对话，检查它是否为空对话
+      if (latestSessionId != _currentSessionId) {
+        // 获取该会话的历史记录，判断是否为空对话（只有一条 AI 消息，无用户消息）
+        final historyResponse =
+            await ApiService.getChatHistoryBySession(latestSessionId);
+        bool isEmptyChat = false;
+        if (historyResponse['code'] == 200) {
+          List<dynamic> chatHistory = historyResponse['data'] ?? [];
+          isEmptyChat = chatHistory.isEmpty ||
+              (chatHistory.length == 1 && chatHistory[0]['senderType'] != 'USER');
+        }
+        if (isEmptyChat) {
+          // 切换到最近的空对话，不显示内部切换提示
+          _switchToChat(latestSessionId, showTip: false);
+          if (showTip && mounted) {
+            TooltipUtil.showTooltip('已复用最近空对话', TooltipPosition.windowCenter);
+          }
+          return;
+        }
+      }
+
+      // 否则创建新对话
+      await _doCreateNewChatInternal(showTip: showTip);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCreatingChat = false;
+        });
+      }
+    }
+  }
+
+  // 实际创建新对话的核心逻辑（不处理 _isCreatingChat 标志，由外层统一控制）
+  Future<void> _doCreateNewChatInternal({bool showTip = true}) async {
+    try {
       final response = await ApiService.createNewChat();
 
       if (response['code'] == 200 && response['data'] != null) {
         String newSessionId = response['data']['sessionId'];
+        final String? previousSessionId = _currentSessionId; // 保存旧会话 ID
 
         if (mounted) {
+          // 根据 showTip 决定是否显示提示
+          if (showTip) {
+            TooltipUtil.showTooltip('新对话已创建', TooltipPosition.windowCenter);
+          }
+
           setState(() {
             _currentSessionId = newSessionId;
             _messages.clear();
@@ -259,29 +318,23 @@ class _MyHomePageState extends State<MyHomePage> {
           await _loadChatHistoryForCurrentSession();
           await _loadChatSessions();
 
+          // 断开旧会话的 SSE 连接
+          if (previousSessionId != null && previousSessionId != newSessionId) {
+            await _disconnectSSE(previousSessionId);
+          }
+
           // 连接新会话的 SSE
           await _connectSSE(newSessionId);
 
-          // 保存当前会话ID到本地存储
+          // 保存当前会话 ID 到本地存储
           SharedPreferences prefs = await SharedPreferences.getInstance();
           await prefs.setString('last_session_id', newSessionId);
-
-          // 显示创建新对话成功的提示
-          if (mounted) {
-            TooltipUtil.showTooltip('新对话已创建', TooltipPosition.windowCenter);
-          }
         }
       } else {
-        _showErrorTooltip('创建新对话失败: ${response['msg'] ?? response['message']}');
+        _showErrorTooltip('创建新对话失败：${response['msg'] ?? response['message']}');
       }
     } catch (e) {
-      _showErrorTooltip('创建新对话时发生错误: $e');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isCreatingChat = false;
-        });
-      }
+      _showErrorTooltip('创建新对话时发生错误：$e');
     }
   }
 
@@ -362,7 +415,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   // 切换到指定对话
-  void _switchToChat(String sessionId) async {
+  void _switchToChat(String sessionId, {bool showTip = true}) async {
     // 如果点击的是当前对话，不执行切换
     if (sessionId == _currentSessionId) {
       if (mounted) {
@@ -372,6 +425,7 @@ class _MyHomePageState extends State<MyHomePage> {
     }
 
     _pendingSwitchSessionId = sessionId;
+    final String? previousSessionId = _currentSessionId; // 保存旧会话 ID
 
     try {
       final response = await ApiService.getChatHistoryBySession(sessionId);
@@ -382,6 +436,11 @@ class _MyHomePageState extends State<MyHomePage> {
         List<dynamic> chatMessages = response['data'] ?? [];
 
         if (mounted) {
+          // 只在需要时显示切换提示
+          if (showTip) {
+            TooltipUtil.showTooltip('已切换到对话', TooltipPosition.windowCenter);
+          }
+
           setState(() {
             _currentSessionId = sessionId;
             _messages.clear();
@@ -398,6 +457,11 @@ class _MyHomePageState extends State<MyHomePage> {
             }
           });
 
+          // 断开旧会话的 SSE 连接
+          if (previousSessionId != null && previousSessionId != sessionId) {
+            await _disconnectSSE(previousSessionId);
+          }
+
           // 连接新会话的 SSE
           await _connectSSE(sessionId);
 
@@ -412,24 +476,19 @@ class _MyHomePageState extends State<MyHomePage> {
             }
           });
 
-          // 显示切换对话成功的提示
-          if (mounted) {
-            TooltipUtil.showTooltip('已切换到对话', TooltipPosition.windowCenter);
-          }
-
-          // 保存当前会话ID到SharedPreferences
+          // 保存当前会话 ID 到 SharedPreferences
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('last_session_id', sessionId);
         }
       } else {
         if (_pendingSwitchSessionId == sessionId) {
           _showErrorTooltip(
-              '获取对话历史失败: ${response['msg'] ?? response['message']}');
+              '获取对话历史失败：${response['msg'] ?? response['message']}');
         }
       }
     } catch (e) {
       if (_pendingSwitchSessionId == sessionId) {
-        _showErrorTooltip('获取对话历史时发生错误: $e');
+        _showErrorTooltip('获取对话历史时发生错误：$e');
       }
     } finally {
       if (_pendingSwitchSessionId == sessionId) {
@@ -442,7 +501,7 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  // 删除当前对话的统一处理逻辑
+  // 删除当前对话的统一处理逻辑（不再显示内部切换/创建提示）
   Future<void> _handleDeleteCurrentChat() async {
     // 删除成功后，立即清理本地状态
     if (mounted) {
@@ -458,16 +517,16 @@ class _MyHomePageState extends State<MyHomePage> {
 
     // 判断是否是最后一个对话
     if (_chatSessions.isEmpty) {
-      // 如果是最后一个对话，创建新对话
-      await _createNewChat();
+      // 如果是最后一个对话，创建新对话（不显示内部提示）
+      await _createNewChat(showTip: false);
       if (mounted) {
         TooltipUtil.showTooltip(
             '已删除最后一个对话，正在创建新对话...', TooltipPosition.windowCenter);
       }
     } else {
-      // 如果不是最后一个对话，切换到最近的对话
+      // 如果不是最后一个对话，切换到最近的对话（不显示内部提示）
       String recentSessionId = _chatSessions.last['id'];
-      _switchToChat(recentSessionId);
+      _switchToChat(recentSessionId, showTip: false);  // 关键修改：抑制"已切换到对话"
       if (mounted) {
         TooltipUtil.showTooltip(
             '已删除当前对话，已切换到最近的对话', TooltipPosition.windowCenter);
@@ -746,6 +805,50 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
+  // 清除文件缓存
+  Future<void> _clearFileCache() async {
+    try {
+      // 调用后端 API 清理临时文件
+      final result = await ApiService.cleanCache('file');
+
+      if (result['code'] == 200) {
+        // 清除前端所有区域的文件缓存
+        [
+          _waitingSectionKey,
+          _readSectionKey,
+          _templateSectionKey,
+          _resultSectionKey,
+        ]
+            .map((key) => key.currentState)
+            .whereType<FileSectionState?>()
+            .where((state) => state != null)
+            .forEach((state) {
+          if (mounted) {
+            state!.clearCache();
+          }
+        });
+
+        if (mounted) {
+          TooltipUtil.showTooltip('文件缓存已清除', TooltipPosition.windowCenter);
+        }
+      } else {
+        if (mounted) {
+          TooltipUtil.showTooltip(
+            result['message'] ?? '清除文件缓存失败',
+            TooltipPosition.windowCenter,
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        TooltipUtil.showTooltip(
+          '清除文件缓存失败：${e.toString()}',
+          TooltipPosition.windowCenter,
+        );
+      }
+    }
+  }
+
   // 登出功能
   Future<void> _logout() async {
     try {
@@ -822,6 +925,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   controller: controllers['siliconFlowApiKey'],
                   decoration:
                       const InputDecoration(labelText: 'SiliconFlow API Key'),
+                  obscureText: true,
                 ),
                 TextFormField(
                   controller: controllers['siliconFlowBaseUrl'],
@@ -844,45 +948,244 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
           ),
           actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('取消'),
-            ),
-            TextButton(
-              onPressed: () async {
-                // 更新配置
-                final newConfig = {
-                  'siliconFlowApiKey': controllers['siliconFlowApiKey']!.text,
-                  'siliconFlowBaseUrl': controllers['siliconFlowBaseUrl']!.text,
-                  'chatModelName': controllers['chatModelName']!.text,
-                  'decisionModelName': controllers['decisionModelName']!.text,
-                  'analysisModelName': controllers['analysisModelName']!.text,
-                };
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // 左侧按钮 - 清除配置缓存
+                TextButton(
+                  onPressed: () async {
+                    try {
+                      // 调用后端 API 清理过期配置
+                      final result = await ApiService.cleanCache('config');
 
-                final updateResponse =
-                    await ApiService.updateUserConfig(newConfig);
+                      if (mounted) {
+                        Navigator.of(context).pop(); // 关闭对话框
 
-                if (updateResponse['code'] == 200) {
-                  Navigator.of(context).pop();
-                  if (mounted) {
-                    TooltipUtil.showTooltip(
-                        '配置已更新', TooltipPosition.windowCenter);
-                  }
-                } else {
-                  if (mounted) {
-                    TooltipUtil.showTooltip(
-                        '配置更新失败: ${updateResponse['message']}',
-                        TooltipPosition.windowCenter);
-                  }
-                }
-              },
-              child: const Text('保存'),
+                        if (result['code'] == 200) {
+                          TooltipUtil.showTooltip(
+                            '配置缓存已清除',
+                            TooltipPosition.windowCenter,
+                          );
+                        } else {
+                          TooltipUtil.showTooltip(
+                            result['message'] ?? '清除配置缓存失败',
+                            TooltipPosition.windowCenter,
+                          );
+                        }
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        Navigator.of(context).pop(); // 关闭对话框
+                        TooltipUtil.showTooltip(
+                          '清除配置缓存失败：${e.toString()}',
+                          TooltipPosition.windowCenter,
+                        );
+                      }
+                    }
+                  },
+                  child: const Text('清除配置缓存'),
+                ),
+                // 右侧按钮 - 取消和保存
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                      child: const Text('取消'),
+                    ),
+                    TextButton(
+                      onPressed: () async {
+                        // 更新配置
+                        final newConfig = {
+                          'siliconFlowApiKey':
+                              controllers['siliconFlowApiKey']!.text,
+                          'siliconFlowBaseUrl':
+                              controllers['siliconFlowBaseUrl']!.text,
+                          'chatModelName': controllers['chatModelName']!.text,
+                          'decisionModelName':
+                              controllers['decisionModelName']!.text,
+                          'analysisModelName':
+                              controllers['analysisModelName']!.text,
+                        };
+
+                        final updateResponse =
+                            await ApiService.updateUserConfig(newConfig);
+
+                        if (updateResponse['code'] == 200) {
+                          Navigator.of(context).pop();
+                          if (mounted) {
+                            TooltipUtil.showTooltip(
+                                '配置已更新', TooltipPosition.windowCenter);
+                          }
+                        } else {
+                          if (mounted) {
+                            TooltipUtil.showTooltip(
+                                '配置更新失败：${updateResponse['message']}',
+                                TooltipPosition.windowCenter);
+                          }
+                        }
+                      },
+                      child: const Text('保存'),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ],
         );
       },
+    );
+  }
+
+  // 显示帮助文档对话框
+  void _showHelpDialog() {
+    // 读取本地 Markdown 文件
+    Future<String> loadHelpContent() async {
+      try {
+        return await rootBundle.loadString('assets/help.md');
+      } catch (e) {
+        return '# 帮助文档加载失败\n\n无法找到帮助文档文件，请稍后重试。';
+      }
+    }
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.help_outline, color: Colors.deepPurple),
+              SizedBox(width: 8),
+              Text('帮助文档'),
+            ],
+          ),
+          content: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width *
+                  0.56, // 原宽度的 3/4（AlertDialog 默认约 75% 屏幕宽度）
+              maxHeight: MediaQuery.of(context).size.height * 0.7,
+            ),
+            child: SizedBox(
+              width: double.maxFinite,
+              height: 500,
+              child: FutureBuilder<String>(
+                future: loadHelpContent(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.error_outline,
+                              size: 48, color: Colors.grey[400]),
+                          const SizedBox(height: 16),
+                          Text('加载失败：${snapshot.error}'),
+                        ],
+                      ),
+                    );
+                  }
+
+                  final content = snapshot.data ?? '帮助文档内容为空';
+
+                  return Markdown(
+                    data: content,
+                    selectable: true,
+                    styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context))
+                        .copyWith(
+                      h1: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.deepPurple,
+                      ),
+                      h2: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.deepPurple,
+                      ),
+                      h3: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.deepPurple,
+                      ),
+                      p: const TextStyle(fontSize: 14, height: 1.6),
+                      listBullet: const TextStyle(fontSize: 14),
+                      blockquote: TextStyle(
+                        fontSize: 14,
+                        fontStyle: FontStyle.italic,
+                        color: Colors.grey[600],
+                      ),
+                      code: TextStyle(
+                        fontSize: 13,
+                        backgroundColor: Colors.grey[200],
+                        fontFamily: 'monospace',
+                      ),
+                      tableBody: const TextStyle(fontSize: 14),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+          actions: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.grey[700],
+                  ),
+                  child: const Text('关闭'),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // 构建帮助章节
+  Widget _buildHelpSection(String title, List<String> items) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.deepPurple,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...items.map((item) => Padding(
+                padding: const EdgeInsets.only(bottom: 4.0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('• ', style: TextStyle(fontSize: 16)),
+                    Expanded(
+                      child: Text(
+                        item,
+                        style: const TextStyle(fontSize: 14, height: 1.5),
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+        ],
+      ),
     );
   }
 
@@ -919,14 +1222,19 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('AI智能文档助手', style: TextStyle(color: Colors.grey[700])),
+        title: Text('AIDoc智能文档处理平台', style: TextStyle(color: Colors.grey[700])),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         foregroundColor: Theme.of(context).colorScheme.onPrimary,
         actions: [
           IconButton(
             icon: Icon(Icons.refresh, color: Colors.grey[700]),
             onPressed: _refreshAllSections,
-            tooltip: '刷新工作区',
+            tooltip: '刷新文件区',
+          ),
+          IconButton(
+            icon: Icon(Icons.delete_sweep, color: Colors.grey[700]),
+            onPressed: _clearFileCache,
+            tooltip: '清除文件缓存',
           ),
           IconButton(
             icon: Icon(Icons.add, color: Colors.grey[700]),
@@ -966,8 +1274,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   ancestor: overlay);
               final Rect buttonRect =
                   Rect.fromPoints(buttonTopLeft, buttonBottomRight);
-              final Rect menuRect =
-                  buttonRect.shift(const Offset(80, 40)); // 应用偏移
+              final Rect menuRect = buttonRect.shift(const Offset(80, 40));
               final RelativeRect position =
                   RelativeRect.fromRect(menuRect, Offset.zero & overlay.size);
 
@@ -995,6 +1302,11 @@ class _MyHomePageState extends State<MyHomePage> {
             icon: Icon(Icons.settings, color: Colors.grey[700]),
             onPressed: _showConfigDialog,
             tooltip: '配置',
+          ),
+          IconButton(
+            icon: Icon(Icons.info_outline, color: Colors.grey[700]),
+            onPressed: _showHelpDialog,
+            tooltip: '帮助文档',
           ),
           IconButton(
             icon: Icon(Icons.logout, color: Colors.grey[700]),
@@ -1384,6 +1696,9 @@ class _MyHomePageState extends State<MyHomePage> {
       if (isEmptyChat) {
         // 复用最新空对话
         if (mounted) {
+          // 显示提示（在状态更新后立即显示）
+          TooltipUtil.showTooltip('已复用最新空对话', TooltipPosition.windowCenter);
+
           setState(() {
             _currentSessionId = latestSessionId;
             _messages.clear();
@@ -1398,11 +1713,6 @@ class _MyHomePageState extends State<MyHomePage> {
           // 保存到本地存储
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('last_session_id', latestSessionId);
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              TooltipUtil.showTooltip('已复用最新空对话', TooltipPosition.windowCenter);
-            }
-          });
         }
       } else {
         // 最新对话不为空，创建新对话
@@ -1423,12 +1733,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
       // 直接创建新对话
       await _createNewChat();
-
-      if (mounted) {
-        TooltipUtil.showTooltip('新对话已创建', TooltipPosition.windowCenter);
-      }
     } catch (e) {
-      _logger.e('初始化新对话时发生错误: $e');
+      _logger.e('初始化新对话时发生错误：$e');
       // 如果创建新对话失败，尝试切换到现有对话
       if (_chatSessions.isNotEmpty) {
         _switchToChat(_chatSessions.first['id']);

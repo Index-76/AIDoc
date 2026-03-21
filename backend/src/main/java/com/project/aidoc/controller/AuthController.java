@@ -5,6 +5,8 @@ import com.project.aidoc.common.dto.LoginRequest;
 import com.project.aidoc.common.dto.LoginResponse;
 import com.project.aidoc.entity.User;
 import com.project.aidoc.service.UserService;
+import com.project.aidoc.service.FileService;
+import com.project.aidoc.service.UserConfigService;
 import cn.dev33.satoken.stp.StpUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -12,12 +14,21 @@ import org.springframework.web.bind.annotation.*;
 // Jakarta EE imports instead of Java EE
 import jakarta.servlet.http.HttpServletRequest;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {
 
     @Autowired
     private UserService userService;
+    
+    @Autowired
+    private FileService fileService;
+    
+    @Autowired
+    private UserConfigService userConfigService;
 
     @PostMapping("/login")
     public Result<LoginResponse> login(@RequestBody LoginRequest loginRequest) {
@@ -117,5 +128,47 @@ public class AuthController {
         }
 
         return Result.error(401, "用户未登录");
+    }
+
+    /**
+     * 清理缓存
+     * 支持两种清理类型：
+     * 1. cleanContent = "file": 清理文件缓存（删除用户在 files 表中 section 为 temp 的全部文件）
+     * 2. cleanContent = "config": 清理配置缓存（删除用户在 userConfigs 中除最新一条配置以外的全部过期配置）
+     */
+    @PostMapping("/clean")
+    public Result<Map<String, Object>> cleanCache(@RequestBody Map<String, String> request) {
+        // 检查用户是否已登录
+        if (!StpUtil.isLogin()) {
+            return Result.error(401, "用户未登录");
+        }
+
+        String userId = StpUtil.getLoginIdAsString();
+        String cleanContent = request.get("cleanContent");
+
+        Map<String, Object> result = new HashMap<>();
+
+        System.out.println("userId: " + userId);
+        System.out.println("cleanContent: " + cleanContent);
+
+        try {
+            if ("file".equals(cleanContent)) {
+                // 清理文件缓存
+                fileService.cleanTempFiles(userId);
+                result.put("message", "文件缓存清理成功");
+                result.put("cleanedType", "file");
+            } else if ("config".equals(cleanContent)) {
+                // 清理配置缓存
+                userConfigService.cleanExpiredConfigs(userId);
+                result.put("message", "配置缓存清理成功");
+                result.put("cleanedType", "config");
+            } else {
+                return Result.error(400, "不支持的清理类型：" + cleanContent);
+            }
+            
+            return Result.success(result);
+        } catch (Exception e) {
+            return Result.error(500, "清理失败：" + e.getMessage());
+        }
     }
 }

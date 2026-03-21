@@ -286,6 +286,30 @@ class FileSectionState extends State<FileSection> {
     });
   }
 
+  // 清除文件缓存
+  void clearCache() {
+    // 重置文件列表的 Future，强制下次访问时重新加载
+    setState(() {
+      _filesFuture = ApiService.getFiles();
+      _isLoading = true;
+    });
+    
+    // 监听 Future 完成，更新加载状态
+    _filesFuture.then((_) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }).catchError((error) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(

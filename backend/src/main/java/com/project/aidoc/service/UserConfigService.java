@@ -9,4 +9,5 @@ public interface UserConfigService {
     UserConfig getUserConfig(String userId);
     UserConfig saveUserConfig(String userId, UserConfig config);
     UserConfig createDefaultUserConfig(String userId);
+    void cleanExpiredConfigs(String userId);
 }

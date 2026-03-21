@@ -157,7 +157,7 @@ public class DirectoryViewerTool {
         
         String directoryInfo = prepareDirectoryInfoForAi(files);
         sb.append(directoryInfo);
-        sb.append("\n请问您想对以上哪个文件进行操作，或者需要什么具体的帮助吗？");
+        sb.append("\n\n请问您想对以上哪个文件进行操作，或者需要什么具体的帮助吗？");
         
         return sb.toString();
     }

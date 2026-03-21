@@ -33,63 +33,56 @@ public class AiDecisionService {
      */
     public AiDecisionResult makeDecision(String userId, String userMessage, String sessionId) {
         log.info("开始 AI 决策，用户 ID: {}, 会话 ID: {}, 用户消息：{}", userId, sessionId, userMessage);
-
         // 控制是否执行预处理逻辑
         boolean needPreprocess = true;
         int toolCode = 0;
         String reason = "默认决策";
 
         try {
-            // 根据needPreprocess变量决定是否执行预处理
+            // 根据 needPreprocess 变量决定是否执行预处理
             if (needPreprocess) {
                 // 执行预处理逻辑
                 log.info("执行预处理逻辑");
-
-                // 步骤1: 检查是否有<tools=?>格式的标记
+                // 步骤 1: 检查是否有<tools=?>格式的标记
                 Pattern toolsPattern = Pattern.compile("<tools=(\\d+)>");
                 Matcher matcher = toolsPattern.matcher(userMessage);
 
                 if (matcher.find()) {
                     // 发现工具标记，直接使用指定工具
                     toolCode = Integer.parseInt(matcher.group(1));
-                    reason = "发现工具标记: " + toolCode;
+                    reason = "发现工具标记：" + toolCode;
                     log.info("发现工具标记，直接使用工具: {}", toolCode);
-
                     // 移除所有工具标记
                     String cleanedMessage = userMessage.replaceAll("<tools=\\d+>", "").trim();
 
                     return new AiDecisionResult(toolCode, true, reason, cleanedMessage);
                 }
 
-                // 步骤2: 检查疑问词和否定词
+                // 步骤 2: 检查疑问词和否定词 - 如果有，则跳过工具关键词检测，直接进 AI决策
                 if (containsQuestionOrNegation(userMessage)) {
-                    toolCode = 0; // 不使用工具
-                    reason = "检测到疑问词或否定词";
-                    log.info("检测到疑问词或否定词，不使用工具");
-                    return new AiDecisionResult(toolCode, true, reason, userMessage);
+                    // 不直接返回，继续到 AI决策
+                } else {
+                    // 步骤 3: 没有疑问/否定词时，才检测工具关键词
+                    ToolType toolType = ToolType.fromKeyword(userMessage);
+                    if (toolType != ToolType.NONE) {
+                        toolCode = toolType.getCode();
+                        reason = "检测到工具关键词：" + toolType.getDescription();
+                        return new AiDecisionResult(toolCode, true, reason, userMessage);
+                    } else {
+                    }
                 }
 
-                // 步骤3: 检查工具关键词
-                ToolType toolType = ToolType.fromKeyword(userMessage);
-                if (toolType != ToolType.NONE) {
-                    toolCode = toolType.getCode();
-                    reason = "检测到工具关键词: " + toolType.getDescription();
-                    log.info("检测到工具关键词，使用工具: {} ({})", toolType.getDescription(), toolCode);
-                    return new AiDecisionResult(toolCode, true, reason, userMessage);
-                }
+                // 步骤 4: 有疑问/否定词，或没有匹配到工具关键词时，调用决策 AI
             }
 
-            // 如果不执行预处理或预处理没有匹配，则调用决策AI
-            log.info("跳过预处理，直接调用决策AI");
+            // 调用决策 AI
             toolCode = callDecisionAi(userId, userMessage, sessionId);
-            reason = "AI智能决策结果: " + toolCode;
-            log.info("AI决策结果: 工具代码={}, 原因={}", toolCode, reason);
-
+            reason = "AI 智能决策结果：" + toolCode;
             return new AiDecisionResult(toolCode, needPreprocess, reason, userMessage);
 
         } catch (Exception e) {
-            log.error("AI决策过程中发生错误", e);
-            return new AiDecisionResult(0, false, "决策过程出错: " + e.getMessage(), userMessage);
+            e.printStackTrace();
+            return new AiDecisionResult(0, false, "决策过程出错：" + e.getMessage(), userMessage);
         }
     }
 
@@ -97,6 +90,7 @@ public class AiDecisionService {
      * 检查消息是否包含疑问词或否定词
      */
     private boolean containsQuestionOrNegation(String message) {
+
         if (message == null || message.isEmpty()) {
             return false;
         }
@@ -108,12 +102,12 @@ public class AiDecisionService {
                 lowerMessage.contains("目录查看") ||
                 lowerMessage.contains("查看文件") ||
                 lowerMessage.contains("文件列表")) {
-            return false; // 包含工具关键词，不是疑问句
+            return false;
         }
 
         // 疑问词
         String[] questionPatterns = {
-                "\\?$", // 以?结尾
+                "\\?$", // 以？结尾
                 "什么\\s*$", // 以"什么"结尾（后面可能有空格）
                 "怎么\\s*$", // 以"怎么"结尾
                 "为什么\\s*$", // 以"为什么"结尾

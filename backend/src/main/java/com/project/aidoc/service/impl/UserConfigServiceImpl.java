@@ -5,6 +5,9 @@ import com.project.aidoc.repository.UserConfigRepository;
 import com.project.aidoc.service.UserConfigService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 /**
  * 用户配置服务实现类
@@ -45,5 +48,40 @@ public class UserConfigServiceImpl implements UserConfigService {
         defaultConfig.setAnalysisModelName("deepseek-ai/DeepSeek-V3.2");
 
         return userConfigRepository.save(defaultConfig);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void cleanExpiredConfigs(String userId) {
+        // 获取用户的所有配置（按创建时间倒序排列）
+        List<UserConfig> configs = userConfigRepository.findByUserIdOrderByCreateTimeDesc(userId);
+        
+        System.out.println("=== 清理配置缓存开始 ===");
+        System.out.println("用户 ID: " + userId);
+        System.out.println("找到的配置数量：" + (configs == null ? 0 : configs.size()));
+        
+        // 如果没有配置或只有一个配置，不需要清理
+        if (configs == null || configs.size() <= 1) {
+            System.out.println("配置数量 <= 1，不需要清理");
+            System.out.println("=== 清理配置缓存结束 ===");
+            return;
+        }
+        
+        // 保留最新的配置（第一个），删除其他所有配置
+        String latestConfigId = configs.get(0).getId();
+        System.out.println("保留最新配置 ID: " + latestConfigId);
+        System.out.println("将删除 " + (configs.size() - 1) + " 个过期配置");
+        
+        // 执行删除操作
+        try {
+            userConfigRepository.deleteByUserIdAndIdNot(userId, latestConfigId);
+            System.out.println("✓ 成功删除过期配置");
+        } catch (Exception e) {
+            System.out.println("✗ 删除过期配置失败：" + e.getMessage());
+            e.printStackTrace();
+            throw e; // 抛出异常，触发事务回滚
+        }
+        
+        System.out.println("=== 清理配置缓存结束 ===");
     }
 }

@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class FileServiceImpl implements FileService {
@@ -223,5 +224,56 @@ public class FileServiceImpl implements FileService {
             return fileOpt.get();
         }
         return null;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void cleanTempFiles(String userId) {
+        // 查找用户的所有临时文件
+        List<File> tempFiles = fileRepository.findByUserIdAndSection(userId, "temp");
+        
+        System.out.println("=== 清理文件缓存开始 ===");
+        System.out.println("用户 ID: " + userId);
+        System.out.println("找到的临时文件数量：" + (tempFiles == null ? 0 : tempFiles.size()));
+        
+        if (tempFiles == null || tempFiles.isEmpty()) {
+            System.out.println("未找到临时文件，跳过清理");
+            System.out.println("=== 清理文件缓存结束 ===");
+            return;
+        }
+        
+        int deletedCount = 0;
+        int failedCount = 0;
+        
+        // 从 GridFS 和 MongoDB 中删除这些文件
+        for (File file : tempFiles) {
+            try {
+                System.out.println("删除文件 ID: " + file.getId() + ", 文件名：" + file.getFileName());
+                
+                // 从 GridFS 删除文件内容
+                gridFsTemplate.delete(new Query(Criteria.where("_id").is(file.getId())));
+                deletedCount++;
+                System.out.println("✓ GridFS 删除成功：" + file.getId());
+            } catch (Exception e) {
+                failedCount++;
+                System.out.println("✗ 删除 GridFS 文件失败：" + file.getId() + ", 错误：" + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+        
+        // 从 MongoDB 删除文件元数据
+        try {
+            fileRepository.deleteByUserIdAndSection(userId, "temp");
+            System.out.println("✓ MongoDB 元数据删除成功");
+        } catch (Exception e) {
+            System.out.println("✗ MongoDB 元数据删除失败：" + e.getMessage());
+            e.printStackTrace();
+            throw e; // 抛出异常，触发事务回滚
+        }
+        
+        System.out.println("=== 清理文件缓存结束 ===");
+        System.out.println("总计：" + tempFiles.size() + " 个文件");
+        System.out.println("成功：" + deletedCount + " 个");
+        System.out.println("失败：" + failedCount + " 个");
     }
 }

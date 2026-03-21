@@ -5,10 +5,8 @@ import com.project.aidoc.service.ApiService;
 import com.project.aidoc.service.FileService;
 import com.project.aidoc.service.UserConfigService;
 import com.project.aidoc.common.utils.ExcelToTemplate;
-import com.project.aidoc.common.utils.TxtToTemplate; // 替换为 TxtToTemplate
+import com.project.aidoc.common.utils.MultiFileToMultiTemplateProcessor; // 替换 TxtToTemplate
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -21,12 +19,14 @@ import java.util.List;
  * - Excel to Word
  * - Word to Excel
  * - Word to Word
+ * 
+ * 决策逻辑：
+ * - 若读取区只有一个文件且为 Excel，且模板区也只有一个文件 → 使用 ExcelToTemplate（可针对单 Excel 数据源进行 AI 筛选）
+ * - 其他情况（多文件、非 Excel 读取文件等）→ 使用 MultiFileToMultiTemplateProcessor（支持混合文件源、多模板）
  */
 @Slf4j
 @Component
 public class SmartFormFillerTool {
-
-    private static final Logger log = LoggerFactory.getLogger(SmartFormFillerTool.class);
 
     @Autowired
     private FileService fileService;
@@ -66,52 +66,41 @@ public class SmartFormFillerTool {
                 return errorMsg;
             }
 
-            // 获取第一个文件（假设每个区域只有一个文件用于填表）
-            File readFile = readFiles.get(0);
-            File templateFile = templateFiles.get(0);
+            // 记录文件信息
+            log.info("读取区文件数量：{}", readFiles.size());
+            log.info("模板区文件数量：{}", templateFiles.size());
 
-            log.info("找到读取文件：{} (类型：{})", readFile.getOriginalName(), readFile.getContentType());
-            log.info("找到模板文件：{} (类型：{})", templateFile.getOriginalName(), templateFile.getContentType());
-
-            // 判断文件类型
-            boolean isReadExcel = isExcelFile(readFile);
-            boolean isTemplateExcel = isExcelFile(templateFile);
+            // 判断是否满足单 Excel 读取 + 单模板的专用路径
+            boolean useExcelToTemplate = false;
+            if (readFiles.size() == 1 && isExcelFile(readFiles.get(0))) {
+                if (templateFiles.size() == 1) {
+                    useExcelToTemplate = true;
+                } else {
+                    log.info("读取区为单 Excel 文件，但模板区有多个文件，将使用多模板处理器");
+                }
+            } else {
+                log.info("读取区包含多个文件或非 Excel 文件，将使用多模板处理器");
+            }
 
             String result;
-            if (isReadExcel && isTemplateExcel) {
-                // Excel to Excel（带 AI 筛选）
-                log.info("调用 ExcelToTemplate 处理 (Excel to Excel)");
+            if (useExcelToTemplate) {
+                // 单 Excel 读取 + 单模板
+                File readFile = readFiles.get(0);
+                File templateFile = templateFiles.get(0);
+                boolean isTemplateWord = !isExcelFile(templateFile); // 模板非 Excel 即为 Word
+
+                log.info("调用 ExcelToTemplate 处理 (读取: {}, 模板: {})",
+                        readFile.getOriginalName(), templateFile.getOriginalName());
                 result = ExcelToTemplate.processWithAI(
                         readFile, templateFile, userId, fileService,
-                        userConfigService, apiService, userMessage, false);
-            } else if (isReadExcel && !isTemplateExcel) {
-                // Excel to Word（带 AI 筛选）
-                log.info("调用 ExcelToTemplate 处理 (Excel to Word)");
-                result = ExcelToTemplate.processWithAI(
-                        readFile, templateFile, userId, fileService,
-                        userConfigService, apiService, userMessage, true);
-            } else if (!isReadExcel && isTemplateExcel) {
-                // Word to Excel
-                log.info("调用 TxtToTemplate 处理 (Word to Excel)");
-                result = TxtToTemplate.process(
-                        readFiles,
-                        templateFiles,
-                        userId,
-                        fileService,
-                        userConfigService,
-                        apiService,
-                        userMessage);
+                        userConfigService, apiService, userMessage, isTemplateWord);
             } else {
-                // Word to Word
-                log.info("调用 TxtToTemplate 处理 (Word to Word)");
-                result = TxtToTemplate.process(
-                        readFiles,
-                        templateFiles,
-                        userId,
-                        fileService,
-                        userConfigService,
-                        apiService,
-                        userMessage);
+                // 其他情况：使用多模板处理器
+                log.info("调用 MultiFileToMultiTemplateProcessor 处理，读取文件 {} 个，模板文件 {} 个",
+                        readFiles.size(), templateFiles.size());
+                result = MultiFileToMultiTemplateProcessor.process(
+                        readFiles, templateFiles, userId, fileService,
+                        userConfigService, apiService, userMessage);
             }
 
             log.info("智能填表执行完成：{}", result);
